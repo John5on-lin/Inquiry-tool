@@ -10,12 +10,10 @@ from config import AppConfig
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 class PriceDataSource:
     """价格数据源抽象基类"""
     def load_prices(self) -> Dict[str, float]:
         raise NotImplementedError("子类必须实现load_prices方法")
-
 
 class ExcelPriceSource(PriceDataSource):
     """Excel价格数据源"""
@@ -55,7 +53,6 @@ class ExcelPriceSource(PriceDataSource):
         except Exception as e:
             logger.error(f"加载Excel价格数据失败: {str(e)}", exc_info=True)
             raise
-
 
 class GoogleSheetsPriceSource(PriceDataSource):
     """Google Sheets价格数据源"""
@@ -124,7 +121,6 @@ class GoogleSheetsPriceSource(PriceDataSource):
             logger.error(f"加载Google Sheets价格数据失败: {str(e)}", exc_info=True)
             raise
 
-
 class PriceFetcher:
     """价格查询器，支持多种数据源"""
     def __init__(self, config: AppConfig):  # 将Config改为AppConfig
@@ -164,4 +160,3 @@ class PriceFetcher:
 
         except Exception as e:
             logger.error(f"获取产品价格失败: {str(e)}")
-            raise

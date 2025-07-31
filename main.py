@@ -1,11 +1,15 @@
 import sys
+import os
 import gradio as gr
 from config import load_config
+from dotenv import load_dotenv
+
+# 加载.env文件
+load_dotenv()
 from price_fetcher import PriceFetcher
 from calculator import Calculator
 from models import Product
 from output_formatter import OutputFormatter
-
 
 def process_products(input_text):
     try:
@@ -46,7 +50,6 @@ def process_products(input_text):
     except Exception as e:
         return [[], f"处理错误: {str(e)}"]
 
-
 def create_interface():
     with gr.Blocks(title="产品价格查询工具", analytics_enabled=False) as demo:
         gr.Markdown("# 产品价格查询工具")
@@ -65,4 +68,7 @@ def create_interface():
 
 if __name__ == "__main__":
     demo = create_interface()
-    demo.launch(server_name="0.0.0.0")
+    # 从环境变量获取服务器配置，默认值用于本地开发
+    server_name = os.getenv('SERVER_NAME', '127.0.0.1')
+    server_port = int(os.getenv('SERVER_PORT', '7860'))
+    demo.launch(server_name=server_name, server_port=server_port)
