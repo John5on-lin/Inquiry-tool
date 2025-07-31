@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
@@ -64,6 +65,26 @@ class GoogleSheetsPriceSource(PriceDataSource):
         self.price_column = config.price_column
         self.price_data: Optional[Dict[str, float]] = None
 
+    def get_credentials(self):
+        """获取Google认证凭证
+        优先从环境变量GOOGLE_APPLICATION_CREDENTIALS获取路径，
+        如果不存在则使用配置中的路径
+        """
+        # 检查是否有GOOGLE_APPLICATION_CREDENTIALS环境变量
+        env_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        if env_credentials_path:
+            logger.info(f"使用环境变量GOOGLE_APPLICATION_CREDENTIALS指定的凭证路径: {env_credentials_path}")
+            return Credentials.from_service_account_file(
+                env_credentials_path,
+                scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+            )
+        else:
+            logger.info(f"使用配置中的凭证路径: {self.credentials_path}")
+            return Credentials.from_service_account_file(
+                self.credentials_path,
+                scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+            )
+
     def load_prices(self) -> Dict[str, float]:
         """加载Google Sheets中的价格数据并返回产品-价格字典"""
         if self.price_data is not None:
@@ -73,10 +94,7 @@ class GoogleSheetsPriceSource(PriceDataSource):
             logger.info(f"开始从Google Sheets加载价格数据: {self.document_id} - {self.sheet_name}")
 
             # 加载凭证并授权
-            credentials = Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
-            )
+            credentials = self.get_credentials()
             client = gspread.authorize(credentials)
 
             # 打开表格并获取数据
