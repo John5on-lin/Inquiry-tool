@@ -113,10 +113,16 @@ class IossFetcher:
     def __init__(self, config: AppConfig):
         self.config = config
         self.data_source = GoogleSheetsIossSource(config)
-        self.ioss_rules = self.data_source.load_rules()
+        self.ioss_rules = None  # 初始化为None，实现懒加载
+
+    def _ensure_rules_loaded(self):
+        """确保IOSS税率规则已加载"""
+        if self.ioss_rules is None:
+            self.ioss_rules = self.data_source.load_rules()
 
     def get_ioss_rule(self, country: str) -> Optional[IossRule]:
         """根据国家获取IOSS税率规则"""
+        self._ensure_rules_loaded()  # 调用懒加载方法
         for rule in self.ioss_rules:
             if rule.country.lower() == country.lower():
                 return rule

@@ -1,16 +1,23 @@
-import sys
-import os
-import gradio as gr
+# 说明文字
+import logging
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 from config import load_config
 from dotenv import load_dotenv
+import os
+import gradio as gr
 
 # 加载.env文件
 load_dotenv()
 from price_fetcher import PriceFetcher
 from calculator import Calculator
-from models import Product
-from output_formatter import OutputFormatter
 
+from output_formatter import OutputFormatter
 from input_handler import InputHandler
 
 # 全局变量存储产品数据
@@ -38,7 +45,66 @@ def load_products(input_text):
     except Exception as e:
         return f"处理错误: {str(e)}"
 
-def process_products(destination, exchange_rate):
+def load_shipping_rules(destination):
+    try:
+        global products_with_data
+        if not products_with_data:
+            logger.info("没有产品数据，返回空的运费规则")
+            return [], {}
+
+        if not destination:
+            logger.info("没有指定目的地，返回空的运费规则")
+            return [], {}
+
+        config = load_config()
+        calculator_instance = Calculator(config)
+        
+        # 调用方法获得匹配的运费规则
+        data = calculator_instance.find_applicable_shipping_rules(products_with_data, destination)
+        logger.info(f"find_applicable_shipping_rules返回数据类型: {type(data)}, 数据长度: {len(data)}")
+        if data:
+            logger.info(f"返回数据第一项: {data[0]}")
+        
+        # 初始化变量
+        choices = []
+        id_map = {}  # 用来把唯一值映射回原数据
+        
+        for item in data:
+            display_text = f"{item['shipping_company']} | 目的地: {item['country']} | 货物属性: {item['attribute']} | 运费: {item['shipping_rate']}RMB/KG | 时效: {item['estimated_delivery_time']} | 挂号费: {item['registration_fee']}RMB/票"
+            value_id = f"{item['shipping_company']}_{item['id']}"  # 唯一 ID
+            choices.append((display_text, value_id))
+            id_map[value_id] = item
+            logger.debug(f"添加到id_map的键: {value_id}, 类型: {type(value_id)}")
+        logger.info(f"生成的choices数量: {len(choices)}, id_map键数量: {len(id_map.keys())}")
+        return gr.update(choices=choices, value=[]), id_map
+    except Exception as e:
+        logger.error(f"运输规则处理错误: {str(e)}")
+        return [], {}
+
+def show_selection(selected_ids, id_map):
+    logger.info(f"show_selection被调用，selected_ids类型: {type(selected_ids)}, 值: {selected_ids}")
+    if not selected_ids:
+        return "你没有选择任何公司", None
+    results = []
+    selected_rule = None
+    # 确保selected_ids是列表
+    if not isinstance(selected_ids, list):
+        logger.info(f"将selected_ids从{type(selected_ids)}转换为列表")
+        selected_ids = [selected_ids]
+    # 使用ID列表
+    for sid in selected_ids:
+        logger.info(f"遍历ID列表，当前sid类型: {type(sid)}, 值: {sid}")
+        if sid in id_map:
+            item = id_map[sid]
+            results.append(f"{item['shipping_company']}, {item['country']}, {item['attribute']} - 运费: {item['shipping_rate']}RMB/KG, 挂号费: {item['registration_fee']}RMB/票, 时效: {item['estimated_delivery_time']}")
+            # 只选择第一个规则
+            if selected_rule is None:
+                selected_rule = item
+        else:
+            results.append(f"无效的选择: {sid}")
+    return "\n".join(results), selected_rule
+
+def check_pricing(destination, exchange_rate, selected_shipping_rules):
     try:
         global products_with_data
         if not products_with_data:
@@ -50,24 +116,27 @@ def process_products(destination, exchange_rate):
         if not exchange_rate or exchange_rate <= 0:
             return "请输入有效的美元换算汇率"
 
+        if not selected_shipping_rules:
+            return "请选择至少一家货代公司"
+
+        # 确保selected_shipping_rules是字典类型
+        if not isinstance(selected_shipping_rules, dict):
+            logger.error(f"selected_shipping_rules类型错误: 期望dict, 实际为{type(selected_shipping_rules)}")
+            return f"内部错误: 运费规则格式不正确"
+
         config = load_config()
         
-        # 计算运费和总价
+        # 计算总价（包含总运费和IOSS税金）
         calculator = Calculator(config)
-        product_rule_infos = []  # 存储每个产品的运费规则信息
-        product_ioss_infos = []  # 存储每个产品的IOSS税金信息
-        for product in products_with_data:
-            # 设置产品的目的地国家
-            product.destination = destination
-            total_price, rule_info, ioss_info = calculator.calculate_product_total(product)
-            product_rule_infos.append(rule_info)
-            product_ioss_infos.append(ioss_info)
-        
-        # 计算总价
-        result = Calculator.calculate_totals(products_with_data)
+        # 传递用户选择的运费规则到计算函数
+        result, rule_info, ioss_info = calculator.calculate_totals(
+            products_with_data, 
+            destination, 
+            selected_shipping_rules
+        )
 
         # 使用OutputFormatter生成HTML格式的结果
-        html_result = OutputFormatter.format_results_as_html(result, product_rule_infos, product_ioss_infos, exchange_rate)
+        html_result = OutputFormatter.format_results_as_html(result, destination, [rule_info], [ioss_info], exchange_rate)
 
         return html_result
     except Exception as e:
@@ -92,22 +161,51 @@ def create_interface():
         
         # 第二步：输入目的地和汇率
         with gr.Row():
-            destination = gr.Textbox(
-                label="目的地国家", 
-                placeholder="例如：美国"
-            )
+            with gr.Column():
+                destination = gr.Textbox(
+                    label="目的地国家", 
+                    placeholder="例如：美国"
+                )
+            with gr.Column():
+                exchange_rate = gr.Number(
+                    label="美元换算汇率", 
+                    value=6.9, 
+                    precision=2
+                )
         
+        shipping_rules_btn = gr.Button("查询运费表")
+        
+        # 第三步：选择确认货代公司
         with gr.Row():
-            exchange_rate = gr.Number(
-                label="美元换算汇率", 
-                value=6.9, 
-                precision=2
-            )
+            with gr.Column():
+                gr.Markdown("### 选择货代公司")
+                checkbox = gr.CheckboxGroup(
+                    choices=[],
+                    label="可选公司",
+                    info="勾选需要的货代公司"
+                )
+                selection_output = gr.Textbox(label="选择结果", lines=5)
         
-        submit_btn = gr.Button("查询")
+        # 在 Blocks 内创建 State
+        id_map_state = gr.State({})     # 存 ID -> 数据映射
+        selection_text_state = gr.State(None)  # 存选择的规则对象
+
+        # 点击按钮时更新 checkbox 的 choices，并把 id_map 存入 state
+        shipping_rules_btn.click(fn=load_shipping_rules, inputs=[destination], outputs=[checkbox, id_map_state])
+
+        # 当 checkbox 改变时，把 checkbox 的值和 id_map_state 传给回调以显示/用于计算
+        checkbox.change(
+            fn=show_selection,
+            inputs=[checkbox, id_map_state],
+            outputs=[selection_output, selection_text_state]
+        )
+        logger.info("已更新checkbox.change事件处理")
+        
+        # 第三步：选择确认货代公司
+        submit_btn = gr.Button("报价查询")
         
         # 结果展示部分
-        result_output = gr.HTML(label="查询结果")
+        result_output = gr.HTML(label="报价查询结果")
 
         # 设置按钮事件
         load_btn.click(
@@ -117,8 +215,8 @@ def create_interface():
         )
 
         submit_btn.click(
-            fn=process_products,
-            inputs=[destination, exchange_rate],
+            fn=check_pricing,
+            inputs=[destination, exchange_rate, selection_text_state],
             outputs=[result_output]
         )
 

@@ -99,5 +99,4 @@ def load_config() -> AppConfig:
         ioss_vat_rate_column=ioss_vat_rate_column,
         ioss_service_rate_column=ioss_service_rate_column
     )
-    
     return config
