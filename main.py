@@ -70,7 +70,7 @@ def load_shipping_rules(destination):
         id_map = {}  # 用来把唯一值映射回原数据
         
         for item in data:
-            display_text = f"{item['shipping_company']} | 目的地: {item['country']} | 货物属性: {item['attribute']} | 运费: {item['shipping_rate']}RMB/KG | 时效: {item['estimated_delivery_time']} | 挂号费: {item['registration_fee']}RMB/票"
+            display_text = f"{item['shipping_company']} | 目的地: {item['country']} | 区域: {item['region']} | 货物属性: {item['attribute']} | 首重: {item['first_weight']}g/{item['first_weight_fee']}元 | 续重: {item['additional_weight']}g/{item['additional_weight_price']}元 | 时效: {item['min_delivery_days']}-{item['max_delivery_days']}天 | 挂号费: {item['registration_fee']}元/票"
             value_id = f"{item['shipping_company']}_{item['id']}"  # 唯一 ID
             choices.append((display_text, value_id))
             id_map[value_id] = item
@@ -96,7 +96,7 @@ def show_selection(selected_ids, id_map):
         logger.info(f"遍历ID列表，当前sid类型: {type(sid)}, 值: {sid}")
         if sid in id_map:
             item = id_map[sid]
-            results.append(f"{item['shipping_company']}, {item['country']}, {item['attribute']} - 运费: {item['shipping_rate']}RMB/KG, 挂号费: {item['registration_fee']}RMB/票, 时效: {item['estimated_delivery_time']}")
+            results.append(f"{item['shipping_company']}, {item['country']}, {item['region']}, {item['attribute']} - 首重: {item['first_weight']}g/{item['first_weight_fee']}元, 续重: {item['additional_weight']}g/{item['additional_weight_price']}元, 挂号费: {item['registration_fee']}元/票, 时效: {item['min_delivery_days']}-{item['max_delivery_days']}天")
             # 只选择第一个规则
             if selected_rule is None:
                 selected_rule = item

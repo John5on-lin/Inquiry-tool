@@ -21,15 +21,20 @@ class GoogleSheetsShippingSource(ShippingDataSource):
         self.document_id = config.google_sheets['document_id']
         self.sheet_name = config.google_sheets_shipping_sheet_name
         self.credentials_path = config.google_sheets['credentials_path']
-        self.country_column = '国家/地区'
-        self.attribute_column = '货物属性'
-        self.weight_min_column = '重量下限(KG)'
-        self.weight_max_column = '重量上限(KG)'
-        self.min_charge_weight_column = '最低计费重(KG)'
-        self.shipping_rate_column = '运费(RMB/KG)'
-        self.registration_fee_column = '挂号费(RMB/票)'
         self.shipping_company_column = '货代公司'
-        self.estimated_delivery_time_column = '参考时效'
+        self.attribute_column = '货物属性'
+        self.country_column = '国家'
+        self.region_column = '区域'
+        self.weight_min_column = '重量下限(g)'
+        self.weight_max_column = '重量上限(g)'
+        self.first_weight_column = '首重（g）'
+        self.first_weight_fee_column = '首重费用（元）'
+        self.additional_weight_column = '续重（g）'
+        self.additional_weight_price_column = '续重单价（元）'
+        self.min_delivery_days_column = '时效最早天数'
+        self.max_delivery_days_column = '时效最晚天数'
+        self.registration_fee_column = '挂号费(RMB/票)'
+        self.volume_weight_ratio_column = '体积重量转换比'
         self.shipping_rules: Optional[List[ShippingRule]] = None
 
     def get_credentials(self):
@@ -70,15 +75,20 @@ class GoogleSheetsShippingSource(ShippingDataSource):
 
             # 验证必要列是否存在
             required_columns = [
-                self.country_column,
+                self.shipping_company_column,
                 self.attribute_column,
+                self.country_column,
+                self.region_column,
                 self.weight_min_column,
                 self.weight_max_column,
-                self.min_charge_weight_column,
-                self.shipping_rate_column,
+                self.first_weight_column,
+                self.first_weight_fee_column,
+                self.additional_weight_column,
+                self.additional_weight_price_column,
+                self.min_delivery_days_column,
+                self.max_delivery_days_column,
                 self.registration_fee_column,
-                self.shipping_company_column,
-                self.estimated_delivery_time_column
+                self.volume_weight_ratio_column
             ]
             if not all(col in data[0] for col in required_columns):
                 missing_cols = [col for col in required_columns if col not in data[0]]
@@ -88,16 +98,38 @@ class GoogleSheetsShippingSource(ShippingDataSource):
             self.shipping_rules = []
             for row in data:
                 try:
+                    # 处理可能的空值
+                    def safe_float(value):
+                        if value == '' or value == '-':
+                            return 0.0
+                        try:
+                            return float(value)
+                        except (ValueError, TypeError):
+                            return 0.0
+                            
+                    def safe_int(value):
+                        if value == '' or value == '-':
+                            return 0
+                        try:
+                            return int(float(value))  # 先转为float处理小数，再转为int
+                        except (ValueError, TypeError):
+                            return 0
+                    
                     rule = ShippingRule(
-                        country=row[self.country_column],
-                        attribute=row[self.attribute_column],
-                        weight_min=float(row[self.weight_min_column]),
-                        weight_max=float(row[self.weight_max_column]),
-                        min_charge_weight=float(row[self.min_charge_weight_column]) if row[self.min_charge_weight_column] and row[self.min_charge_weight_column] != '-' else 0,
-                        shipping_rate=float(row[self.shipping_rate_column]),
-                        registration_fee=float(row[self.registration_fee_column]),
                         shipping_company=row[self.shipping_company_column],
-                        estimated_delivery_time=row[self.estimated_delivery_time_column]
+                        attribute=row[self.attribute_column],
+                        country=row[self.country_column],
+                        region=row[self.region_column],
+                        weight_min=safe_float(row[self.weight_min_column]),
+                        weight_max=safe_float(row[self.weight_max_column]),
+                        first_weight=safe_float(row[self.first_weight_column]),
+                        first_weight_fee=safe_float(row[self.first_weight_fee_column]),
+                        additional_weight=safe_float(row[self.additional_weight_column]),
+                        additional_weight_price=safe_float(row[self.additional_weight_price_column]),
+                        min_delivery_days=safe_int(row[self.min_delivery_days_column]),
+                        max_delivery_days=safe_int(row[self.max_delivery_days_column]),
+                        registration_fee=safe_float(row[self.registration_fee_column]),
+                        volume_weight_ratio=safe_float(row[self.volume_weight_ratio_column])
                     )
                     self.shipping_rules.append(rule)
                 except (ValueError, TypeError) as e:

@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 import logging
+import math
 from config import AppConfig
 from shipping_fetcher import GoogleSheetsShippingSource
 from ioss_fetcher import IossFetcher
@@ -38,12 +39,26 @@ class Calculator:
         Returns:
             适用运费规则列表
         """
-        # 计算累积物品重量
-        total_weight = sum(product.quantity * product.weight for product in products)
-        logger.info(f"累积物品重量: {total_weight}KG")
+        # 计算产品总重量和收集产品属性
+        total_weight = 0
+        product_attributes = set()
+        for product in products:
+            total_weight += product.quantity * product.weight
+            product_attributes.add(product.attribute)
+        logger.info(f"累积物品重量: {total_weight}g")
 
-        # 默认设定产品属性为"带电"
-        attribute = "带电"
+        # 定义属性优先级: 药品 > 保健品 > 敏感品 > 带电 > 普货
+        attribute_priority = ['药品', '保健品', '敏感品', '带电', '普货']
+
+        # 根据优先级确定最高优先级的属性
+        for attr in attribute_priority:
+            if attr in product_attributes:
+                attribute = attr
+                break
+        else:
+            attribute = '普货'  # 默认值
+
+        logger.info(f"确定最高优先级属性: {attribute}")
 
         # 查找适用的运费规则
         applicable_rules = [
@@ -57,101 +72,87 @@ class Calculator:
             logger.warning(f"未找到适用的运费规则: 国家={destination}, 属性={attribute}, 重量={total_weight}")
             return []
 
-        # 转换为字典列表直接返回
+        # 转换为字典列表直接返回，并包含total_weight
         return [{
             'id': i,
             'shipping_company': rule.shipping_company,
             'country': rule.country,
             'attribute': rule.attribute,
+            'region': rule.region,
             'weight_min': rule.weight_min,
             'weight_max': rule.weight_max,
-            'min_charge_weight': rule.min_charge_weight,
-            'shipping_rate': rule.shipping_rate,
-            'estimated_delivery_time': rule.estimated_delivery_time,
+            'first_weight': rule.first_weight,
+            'first_weight_fee': round(rule.first_weight_fee, 3),
+            'additional_weight': rule.additional_weight,
+            'additional_weight_price': round(rule.additional_weight_price, 3),
+            'min_delivery_days': rule.min_delivery_days,
+            'max_delivery_days': rule.max_delivery_days,
             'registration_fee': rule.registration_fee,
+            'volume_weight_ratio': rule.volume_weight_ratio,
+            'total_weight': total_weight  # 添加total_weight到返回数据中
         } for i, rule in enumerate(applicable_rules)]
-
-    def calculate_total_shipping_fee(self, products: List[Product], destination: str) -> tuple[float, dict]:
-        """计算所有产品的总运费，包含寻找运输规则的逻辑
-
-        Args:
-            products: 产品列表
-            destination: 目的地国家
-
-        Returns:
-            总运费金额和规则信息
-        """
-        # 计算累积物品重量
-        total_weight = sum(product.quantity * product.weight for product in products)
-        logger.info(f"累积物品重量: {total_weight}KG")
-
-        # 默认设定产品属性为"带电"
-        attribute = "带电"
-
-        # 查找适用的运费规则
-        applicable_rules = [
-            rule for rule in self.shipping_rules
-            if rule.country.lower() == destination.lower()
-            and rule.attribute.lower() == attribute.lower()
-            and rule.weight_min < total_weight <= rule.weight_max
-        ]
-
-        if not applicable_rules:
-            logger.warning(f"未找到适用的运费规则: 国家={destination}, 属性={attribute}, 重量={total_weight}")
-            return 0.0, {}
-
-        # 锁定第一条适用规则
-        rule = applicable_rules[0]
-
-        # 记录命中的规则信息
-        logger.info(f"使用运费规则: 国家={rule.country}, 属性={rule.attribute}, 重量范围={rule.weight_min}-{rule.weight_max}KG, 最低计费重={rule.min_charge_weight}KG, 运费率={rule.shipping_rate}RMB/KG, 挂号费={rule.registration_fee}RMB/票")
-
-        # 计算运费: max(物品重量,最低计费重) * 运费 + 挂号费
-        charge_weight = max(total_weight, rule.min_charge_weight)
-        shipping_fee = charge_weight * rule.shipping_rate + rule.registration_fee
-
-        logger.info(f"计算总运费成功: 重量={total_weight}, 运费={shipping_fee}")
-
-        # 返回运费和规则信息
-        rule_info = {
-            'shipping_company': rule.shipping_company,
-            'estimated_delivery_time': rule.estimated_delivery_time,
-            'shipping_rate': rule.shipping_rate,
-            'registration_fee': rule.registration_fee,
-            'actual_weight': total_weight
-        }
-
-        return shipping_fee, rule_info
 
     def calculate_shipping_fee(self, products: List[Product], selected_shipping_rules: dict) -> tuple[float, dict]:
         """计算产品的运费
 
         Args:
             products: 产品列表
-            rule: 选择的运费规则
+            selected_shipping_rules: 选择的运费规则
 
         Returns:
             运费金额和使用的规则信息
         """
-        # 计算累积物品重量
-        total_weight = sum(product.quantity * product.weight for product in products)
-        logger.info(f"累积物品重量: {total_weight}KG")
+        # 尝试从selected_shipping_rules中获取total_weight
+        total_weight = selected_shipping_rules.get('total_weight')
+        
+        # 如果没有提供total_weight，则计算
+        if total_weight is None:
+            total_weight = sum(product.quantity * product.weight for product in products)
+            logger.info(f"计算累积物品重量: {total_weight}g")
+        else:
+            logger.info(f"使用已计算的累积物品重量: {total_weight}g")
 
         # 记录命中的规则信息
-        logger.info(f"使用运费规则: 国家={selected_shipping_rules['country']}, 属性={selected_shipping_rules['attribute']}, 重量范围={selected_shipping_rules['weight_min']}-{selected_shipping_rules['weight_max']}KG, 最低计费重={selected_shipping_rules['min_charge_weight']}KG, 运费率={selected_shipping_rules['shipping_rate']}RMB/KG, 挂号费={selected_shipping_rules['registration_fee']}RMB/票")
+        logger.info(f"使用运费规则: 国家={selected_shipping_rules['country']}, 属性={selected_shipping_rules['attribute']}, 区域={selected_shipping_rules['region']}, 重量范围={selected_shipping_rules['weight_min']}-{selected_shipping_rules['weight_max']}g, 首重={selected_shipping_rules['first_weight']}g, 首重费用={selected_shipping_rules['first_weight_fee']}元, 续重={selected_shipping_rules['additional_weight']}g, 续重单价={selected_shipping_rules['additional_weight_price']}元, 挂号费={selected_shipping_rules['registration_fee']}元/票")
 
-        # 计算运费: max(物品重量,最低计费重) * 运费 + 挂号费
-        charge_weight = max(total_weight, selected_shipping_rules['min_charge_weight'])
-        shipping_fee = charge_weight * selected_shipping_rules['shipping_rate'] + selected_shipping_rules['registration_fee']
+        # 计算运费
+        first_weight = selected_shipping_rules['first_weight']
+        first_weight_fee = selected_shipping_rules['first_weight_fee']
+        additional_weight = selected_shipping_rules['additional_weight']
+        additional_weight_price = selected_shipping_rules['additional_weight_price']
+        registration_fee = selected_shipping_rules['registration_fee']
 
-        logger.info(f"计算运费成功: 总重量={total_weight}, 运费={shipping_fee}")
+        if total_weight <= first_weight:
+            # 未超过首重
+            shipping_fee = first_weight_fee + registration_fee
+        else:
+            # 超过首重，计算续重费用
+            remaining_weight = total_weight - first_weight
+            # 计算需要多少个续重单位
+            additional_units = remaining_weight / additional_weight
+            # 向上取整
+            additional_units = math.ceil(additional_units)
+            shipping_fee = first_weight_fee + (additional_units * additional_weight_price) + registration_fee
+
+        logger.info(f"计算运费成功: 总重量={total_weight}g, 运费={shipping_fee}")
+
+        # 计算时效信息
+        min_days = selected_shipping_rules['min_delivery_days']
+        max_days = selected_shipping_rules['max_delivery_days']
+        estimated_delivery_time = f"{min_days}-{max_days}天" if min_days > 0 and max_days > 0 else ""
 
         # 返回运费和规则信息
         rule_info = {
             'shipping_company': selected_shipping_rules.get('shipping_company', ''),
-            'estimated_delivery_time': selected_shipping_rules.get('estimated_delivery_time', ''),
-            'shipping_rate': selected_shipping_rules.get('shipping_rate', 0),
-            'registration_fee': selected_shipping_rules.get('registration_fee', 0),
+            'region': selected_shipping_rules.get('region', ''),
+            'estimated_delivery_time': estimated_delivery_time,
+            'min_delivery_days': min_days,
+            'max_delivery_days': max_days,
+            'first_weight': first_weight,
+            'first_weight_fee': first_weight_fee,
+            'additional_weight': additional_weight,
+            'additional_weight_price': additional_weight_price,
+            'registration_fee': registration_fee,
             'actual_weight': total_weight
         }
 

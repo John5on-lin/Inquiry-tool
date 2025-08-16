@@ -32,19 +32,25 @@ class OutputFormatter:
         
         # 打印所有运费价格信息
         print("\n\n------------- 运费价格信息 -------------")
-        print(f"{'产品名称':<15} {'货代公司':<15} {'目的地':<10} {'参考时效':<10} {'重量(KG)':<10} {'运费率':<10} {'手续费':<10} {'运费':<10}")
-        print("-----------------------------------------------------------------------------------------------------------")
+        print(f"{'产品名称':<15} {'货代公司':<15} {'目的地':<10} {'区域':<10} {'参考时效':<10} {'重量(g)':<10} {'首重':<15} {'续重':<15} {'手续费':<10} {'运费':<10}")
+        print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
         for i, product in enumerate(result.products):
             if product.price > 0:
                 rule_info = product_rule_infos[i] if (product_rule_infos and i < len(product_rule_infos)) else {}
                 shipping_company = rule_info.get('shipping_company', '')
-                estimated_delivery_time = rule_info.get('estimated_delivery_time', '')
+                region = rule_info.get('region', '')
+                min_days = rule_info.get('min_delivery_days', 0)
+                max_days = rule_info.get('max_delivery_days', 0)
+                estimated_delivery_time = f"{min_days}-{max_days}天" if min_days > 0 and max_days > 0 else ""
                 actual_weight = rule_info.get('actual_weight', 0)
-                shipping_rate = rule_info.get('shipping_rate', 0)
+                first_weight = rule_info.get('first_weight', 0)
+                first_weight_fee = rule_info.get('first_weight_fee', 0)
+                additional_weight = rule_info.get('additional_weight', 0)
+                additional_weight_price = rule_info.get('additional_weight_price', 0)
                 registration_fee = rule_info.get('registration_fee', 0)
                 
                 total_shipping_fee += product.shipping_fee
-                print(f"{product.name:<15} {shipping_company:<15} {destination:<10} {estimated_delivery_time:<10} {actual_weight:<10.2f} {shipping_rate:<10.2f} {registration_fee:<10.2f} {product.shipping_fee:<10.2f}")
+                print(f"{product.name:<15} {shipping_company:<15} {destination:<10} {region:<10} {estimated_delivery_time:<10} {actual_weight:<10.0f} {first_weight}g/{first_weight_fee:.3f}元{'':<5} {additional_weight}g/{additional_weight_price:.3f}元{'':<5} {registration_fee:<10.2f} {product.shipping_fee:<10.2f}")
             else:
                 print(f"{product.name:<15} {'-':<15} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10}")
         
@@ -130,21 +136,27 @@ class OutputFormatter:
         html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
         html_result += "<h3>运费价格信息</h3>"
         html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse;'>"
-        html_result += "<tr><th>货代公司</th><th>目的地</th><th>参考时效</th><th>重量(KG)</th><th>运费率(RMB/KG)</th><th>手续费(RMB/票)</th><th>运费价格</th></tr>"
+        html_result += "<tr><th>货代公司</th><th>目的地</th><th>区域</th><th>参考时效</th><th>重量(g)</th><th>首重(g/元)</th><th>续重(g/元)</th><th>手续费(元/票)</th><th>运费价格</th></tr>"
 
         # 显示总运费信息（合并成一条）
         if product_rule_infos and len(product_rule_infos) > 0:
             rule_info = product_rule_infos[0]
             shipping_company = rule_info.get('shipping_company', '')
-            estimated_delivery_time = rule_info.get('estimated_delivery_time', '')
+            region = rule_info.get('region', '')
+            min_days = rule_info.get('min_delivery_days', 0)
+            max_days = rule_info.get('max_delivery_days', 0)
+            estimated_delivery_time = f"{min_days}-{max_days}天" if min_days > 0 and max_days > 0 else ""
             actual_weight = rule_info.get('actual_weight', 0)
-            shipping_rate = rule_info.get('shipping_rate', 0)
+            first_weight = rule_info.get('first_weight', 0)
+            first_weight_fee = rule_info.get('first_weight_fee', 0)
+            additional_weight = rule_info.get('additional_weight', 0)
+            additional_weight_price = rule_info.get('additional_weight_price', 0)
             registration_fee = rule_info.get('registration_fee', 0)
             # 从result中获取总运费
             total_shipping_fee = result.total_amount - total_product_price - result.ioss_taxes
             shipping_fee = total_shipping_fee
             shipping_fee_usd = shipping_fee / exchange_rate
-            html_result += f"<tr><td>{shipping_company}</td><td>{destination}</td><td>{estimated_delivery_time}</td><td>{actual_weight:.2f}</td><td>{shipping_rate:.2f}</td><td>{registration_fee:.2f}</td><td>{shipping_fee:.2f} RMB ({shipping_fee_usd:.2f} USD)</td></tr>"
+            html_result += f"<tr><td>{shipping_company}</td><td>{destination}</td><td>{region}</td><td>{estimated_delivery_time}</td><td>{actual_weight:.0f}</td><td>{first_weight}/{first_weight_fee:.3f}</td><td>{additional_weight}/{additional_weight_price:.3f}</td><td>{registration_fee:.2f}</td><td>{shipping_fee:.2f} RMB ({shipping_fee_usd:.2f} USD)</td></tr>"
         else:
             html_result += "<tr><td colspan='7'>没有适用的运费规则信息</td></tr>"
 

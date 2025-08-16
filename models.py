@@ -19,15 +19,20 @@ class Product:
 @dataclass
 class ShippingRule:
     """运费规则数据模型"""
-    country: str
-    attribute: str
-    weight_min: float
-    weight_max: float
-    min_charge_weight: float
-    shipping_rate: float
-    registration_fee: float
     shipping_company: str  # 货代公司
-    estimated_delivery_time: str  # 参考时效
+    attribute: str  # 货物属性
+    country: str  # 国家
+    region: str  # 区域
+    weight_min: float  # 重量下限(g)
+    weight_max: float  # 重量上限(g)
+    first_weight: float  # 首重（g）
+    first_weight_fee: float  # 首重费用（元）
+    additional_weight: float  # 续重（g）
+    additional_weight_price: float  # 续重单价（元）
+    min_delivery_days: int  # 时效最早天数
+    max_delivery_days: int  # 时效最晚天数
+    registration_fee: float  # 挂号费(RMB/票)
+    volume_weight_ratio: float  # 体积重量转换比
 
 @dataclass
 class IossRule:
