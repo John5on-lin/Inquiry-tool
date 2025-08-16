@@ -34,7 +34,6 @@ class GoogleSheetsShippingSource(ShippingDataSource):
         self.min_delivery_days_column = '时效最早天数'
         self.max_delivery_days_column = '时效最晚天数'
         self.registration_fee_column = '挂号费(RMB/票)'
-        self.volume_weight_ratio_column = '体积重量转换比'
         self.shipping_rules: Optional[List[ShippingRule]] = None
 
     def get_credentials(self):
@@ -87,8 +86,7 @@ class GoogleSheetsShippingSource(ShippingDataSource):
                 self.additional_weight_price_column,
                 self.min_delivery_days_column,
                 self.max_delivery_days_column,
-                self.registration_fee_column,
-                self.volume_weight_ratio_column
+                self.registration_fee_column
             ]
             if not all(col in data[0] for col in required_columns):
                 missing_cols = [col for col in required_columns if col not in data[0]]
@@ -128,8 +126,7 @@ class GoogleSheetsShippingSource(ShippingDataSource):
                         additional_weight_price=safe_float(row[self.additional_weight_price_column]),
                         min_delivery_days=safe_int(row[self.min_delivery_days_column]),
                         max_delivery_days=safe_int(row[self.max_delivery_days_column]),
-                        registration_fee=safe_float(row[self.registration_fee_column]),
-                        volume_weight_ratio=safe_float(row[self.volume_weight_ratio_column])
+                        registration_fee=safe_float(row[self.registration_fee_column])
                     )
                     self.shipping_rules.append(rule)
                 except (ValueError, TypeError) as e:

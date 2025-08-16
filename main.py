@@ -45,7 +45,7 @@ def load_products(input_text):
     except Exception as e:
         return f"处理错误: {str(e)}"
 
-def load_shipping_rules(destination):
+def load_shipping_rules(destination, volume_weight_ratio):
     try:
         global products_with_data
         if not products_with_data:
@@ -60,7 +60,7 @@ def load_shipping_rules(destination):
         calculator_instance = Calculator(config)
         
         # 调用方法获得匹配的运费规则
-        data = calculator_instance.find_applicable_shipping_rules(products_with_data, destination)
+        data = calculator_instance.find_applicable_shipping_rules(products_with_data, destination, volume_weight_ratio)
         logger.info(f"find_applicable_shipping_rules返回数据类型: {type(data)}, 数据长度: {len(data)}")
         if data:
             logger.info(f"返回数据第一项: {data[0]}")
@@ -159,7 +159,7 @@ def create_interface():
         # 产品图片展示区域
         product_images = gr.HTML(label="产品图片")
         
-        # 第二步：输入目的地和汇率
+        # 第二步：输入目的地、汇率和体积重量转换比
         with gr.Row():
             with gr.Column():
                 destination = gr.Textbox(
@@ -171,6 +171,12 @@ def create_interface():
                     label="美元换算汇率", 
                     value=6.9, 
                     precision=2
+                )
+            with gr.Column():
+                volume_weight_ratio = gr.Number(
+                    label="体积重量转换比", 
+                    value=6000, 
+                    precision=0
                 )
         
         shipping_rules_btn = gr.Button("查询运费表")
@@ -191,7 +197,7 @@ def create_interface():
         selection_text_state = gr.State(None)  # 存选择的规则对象
 
         # 点击按钮时更新 checkbox 的 choices，并把 id_map 存入 state
-        shipping_rules_btn.click(fn=load_shipping_rules, inputs=[destination], outputs=[checkbox, id_map_state])
+        shipping_rules_btn.click(fn=load_shipping_rules, inputs=[destination, volume_weight_ratio], outputs=[checkbox, id_map_state])
 
         # 当 checkbox 改变时，把 checkbox 的值和 id_map_state 传给回调以显示/用于计算
         checkbox.change(

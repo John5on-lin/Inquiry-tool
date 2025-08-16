@@ -96,16 +96,19 @@ class OutputFormatter:
         html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
         html_result += "<h3>产品价格信息</h3>"
         html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse;'>"
-        html_result += "<tr><th>产品名称</th><th>单价</th><th>数量</th><th>产品价格</th></tr>"
+        html_result += "<tr><th>产品名称</th><th>单价</th><th>数量</th><th>产品价格</th><th>实际重量(g)</th><th>体积重量(g)</th></tr>"
 
         for i, p in enumerate(result.products):
             if p.price > 0:
                 product_total = p.price * p.quantity
                 total_product_price += product_total
                 product_total_usd = product_total / exchange_rate
-                html_result += f"<tr><td>{p.name}</td><td>{p.price:.2f}</td><td>{p.quantity}</td><td>{product_total:.2f} RMB ({product_total_usd:.2f} USD)</td></tr>"
+                # 获取产品的实际重量和体积重量
+                actual_weight = getattr(p, 'actual_weight', 0)
+                volume_weight = getattr(p, 'volume_weight', 0)
+                html_result += f"<tr><td>{p.name}</td><td>{p.price:.2f}</td><td>{p.quantity}</td><td>{product_total:.2f} RMB ({product_total_usd:.2f} USD)</td><td>{actual_weight:.2f}</td><td>{volume_weight:.2f}</td></tr>"
             else:
-                html_result += f"<tr><td>{p.name}</td><td>-</td><td>{p.quantity}</td><td>-</td></tr>"
+                html_result += f"<tr><td>{p.name}</td><td>-</td><td>{p.quantity}</td><td>-</td><td>-</td><td>-</td></tr>"
 
         html_result += "</table>"
         html_result += "</div>"

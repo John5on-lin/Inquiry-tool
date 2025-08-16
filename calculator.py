@@ -29,7 +29,7 @@ class Calculator:
         
         self.ioss_fetcher = IossFetcher(config)
 
-    def find_applicable_shipping_rules(self, products: List[Product], destination: str) -> List[Dict[str, Any]]:
+    def find_applicable_shipping_rules(self, products: List[Product], destination: str, volume_weight_ratio: int) -> List[Dict[str, Any]]:
         """查找所有适用的运费规则,给前端展示
 
         Args:
@@ -43,7 +43,25 @@ class Calculator:
         total_weight = 0
         product_attributes = set()
         for product in products:
-            total_weight += product.quantity * product.weight
+            # 计算实际重量
+            actual_weight = product.quantity * product.weight
+            # 存储实际重量到产品对象
+            product.actual_weight = actual_weight
+            
+            # 计算体积重量（如果长、宽、高都有值）
+            if product.length and product.width and product.height:
+                volume_weight = product.length * product.width * product.height / volume_weight_ratio
+                # 体积重量乘以数量
+                volume_weight *= product.quantity
+                # 存储体积重量到产品对象
+                product.volume_weight = volume_weight
+                # 取实际重量和体积重量中的较大值
+                product_total_weight = max(actual_weight, volume_weight)
+            else:
+                product.volume_weight = 0
+                product_total_weight = actual_weight
+            
+            total_weight += product_total_weight
             product_attributes.add(product.attribute)
         logger.info(f"累积物品重量: {total_weight}g")
 
@@ -88,7 +106,6 @@ class Calculator:
             'min_delivery_days': rule.min_delivery_days,
             'max_delivery_days': rule.max_delivery_days,
             'registration_fee': rule.registration_fee,
-            'volume_weight_ratio': rule.volume_weight_ratio,
             'total_weight': total_weight  # 添加total_weight到返回数据中
         } for i, rule in enumerate(applicable_rules)]
 

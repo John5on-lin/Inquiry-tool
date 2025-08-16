@@ -5,7 +5,7 @@ class Product:
     """产品数据模型"""
     name: str
     quantity: float
-    weight: float  # 单个产品重量(KG)
+    weight: float  # 单个产品重量(g)
     attribute: str  # 产品属性(如: 带电)
     length: float = 0.0  # 长度(cm)
     width: float = 0.0  # 宽度(cm)
@@ -15,6 +15,8 @@ class Product:
     image_url: str = ""  # 产品图片地址
     shipping_fee: float = 0.0  # 运费
     total: float = 0.0
+    actual_weight: float = 0.0  # 实际重量(g)
+    volume_weight: float = 0.0  # 体积重量(g)
 
 @dataclass
 class ShippingRule:
@@ -32,7 +34,6 @@ class ShippingRule:
     min_delivery_days: int  # 时效最早天数
     max_delivery_days: int  # 时效最晚天数
     registration_fee: float  # 挂号费(RMB/票)
-    volume_weight_ratio: float  # 体积重量转换比
 
 @dataclass
 class IossRule:
