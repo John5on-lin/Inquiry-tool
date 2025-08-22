@@ -47,6 +47,8 @@ class InputHandler:
         for line in lines:
             if not line.strip():
                 continue
+            # 替换中文逗号为英文逗号
+            line = line.replace('，', ',')
             parts = line.split(',')
             if len(parts) != 2:
                 raise ValueError(f"格式错误：{line}。请使用'产品名称,数量'的格式。例如：苹果,2")

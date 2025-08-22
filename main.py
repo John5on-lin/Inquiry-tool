@@ -11,6 +11,7 @@ from config import load_config
 from dotenv import load_dotenv
 import os
 import gradio as gr
+import pandas as pd
 
 # 加载.env文件
 load_dotenv()
@@ -143,88 +144,104 @@ def check_pricing(destination, exchange_rate, selected_shipping_rules):
         return f"处理错误: {str(e)}"
 
 def create_interface():
-    with gr.Blocks(title="产品价格查询与运费计算工具", analytics_enabled=False) as demo:
-        gr.Markdown("# 产品价格查询与运费计算工具")
-        
-        # 第一步：输入产品信息
-        with gr.Row():
-            input_text = gr.Textbox(
-                lines=5, 
-                label="输入产品信息（每行一个产品，格式：产品名称,数量）", 
-                placeholder="例如：\n苹果, 2\n香蕉, 3"
-            )
-        
-        load_btn = gr.Button("加载产品")
-        
-        # 产品图片展示区域
-        product_images = gr.HTML(label="产品图片")
-        
-        # 第二步：输入目的地、汇率和体积重量转换比
-        with gr.Row():
-            with gr.Column():
-                destination = gr.Textbox(
-                    label="目的地国家", 
-                    placeholder="例如：美国"
-                )
-            with gr.Column():
-                exchange_rate = gr.Number(
-                    label="美元换算汇率", 
-                    value=6.9, 
-                    precision=2
-                )
-            with gr.Column():
-                volume_weight_ratio = gr.Number(
-                    label="体积重量转换比", 
-                    value=6000, 
-                    precision=0
-                )
-        
-        shipping_rules_btn = gr.Button("查询运费表")
-        
-        # 第三步：选择确认货代公司
-        with gr.Row():
-            with gr.Column():
-                gr.Markdown("### 选择货代公司")
-                checkbox = gr.CheckboxGroup(
-                    choices=[],
-                    label="可选公司",
-                    info="勾选需要的货代公司"
-                )
-                selection_output = gr.Textbox(label="选择结果", lines=5)
-        
-        # 在 Blocks 内创建 State
-        id_map_state = gr.State({})     # 存 ID -> 数据映射
-        selection_text_state = gr.State(None)  # 存选择的规则对象
+    with gr.Blocks(title="多功能工具", analytics_enabled=False) as demo:
+        gr.Markdown("# 工具集合")
 
-        # 点击按钮时更新 checkbox 的 choices，并把 id_map 存入 state
-        shipping_rules_btn.click(fn=load_shipping_rules, inputs=[destination, volume_weight_ratio], outputs=[checkbox, id_map_state])
+        with gr.Tabs():
+            # Tab 1: 价格查询与运费计算
+            with gr.Tab("产品价格与运费"):
+                gr.Markdown("## 产品价格查询与运费计算工具")
 
-        # 当 checkbox 改变时，把 checkbox 的值和 id_map_state 传给回调以显示/用于计算
-        checkbox.change(
-            fn=show_selection,
-            inputs=[checkbox, id_map_state],
-            outputs=[selection_output, selection_text_state]
-        )
-        logger.info("已更新checkbox.change事件处理")
-        
-        # 第三步：选择确认货代公司
-        submit_btn = gr.Button("报价查询")
-        
-        # 结果展示部分
-        result_output = gr.HTML(label="报价查询结果")
+                # 第一步：输入产品信息
+                with gr.Row():
+                    with gr.Column(scale=4):
+                        input_text = gr.Textbox(
+                            lines=5,
+                            label="输入产品信息（每行一个产品，格式：产品名称,数量）",
+                            placeholder="例如：\n苹果, 2\n香蕉, 3"
+                        )
+                    with gr.Column(scale=1, min_width=100):
+                        load_btn = gr.Button("加载产品")
 
-        # 设置按钮事件
-        load_btn.click(
-            fn=load_products,
-            inputs=[input_text],
-            outputs=[product_images]
-        )
+                # 产品图片展示区域
+                product_images = gr.HTML(label="产品图片")
 
-        submit_btn.click(
-            fn=check_pricing,
-            inputs=[destination, exchange_rate, selection_text_state],
-            outputs=[result_output]
-        )
+                # 第二步：输入目的地、汇率和体积重量转换比
+                with gr.Row():
+                    with gr.Column():
+                        destination = gr.Textbox(label="目的地国家", placeholder="例如：美国")
+                    with gr.Column():
+                        exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
+                    with gr.Column():
+                        volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000, precision=0)
+                shipping_rules_btn = gr.Button("查询运费表")
+
+                # 第三步：选择确认货代公司
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("### 选择货代公司")
+                        checkbox = gr.CheckboxGroup(choices=[], label="可选公司", info="勾选需要的货代公司")
+                        selection_output = gr.Textbox(label="选择结果", lines=5)
+
+                # State
+                id_map_state = gr.State({}) 
+                selection_text_state = gr.State(None) 
+
+                # 交互逻辑
+                shipping_rules_btn.click(
+                    fn=load_shipping_rules,
+                    inputs=[destination, volume_weight_ratio],
+                    outputs=[checkbox, id_map_state]
+                )
+                checkbox.change(
+                    fn=show_selection,
+                    inputs=[checkbox, id_map_state],
+                    outputs=[selection_output, selection_text_state]
+                )
+                logger.info("已更新checkbox.change事件处理")
+
+                # 提交按钮
+                submit_btn = gr.Button("报价查询")
+                result_output = gr.HTML(label="报价查询结果")
+
+                # 按钮事件
+                load_btn.click(fn=load_products, inputs=[input_text], outputs=[product_images])
+                submit_btn.click(
+                    fn=check_pricing,
+                    inputs=[destination, exchange_rate, selection_text_state],
+                    outputs=[result_output]
+                )
+
+            # Tab 2: Invoice 助理
+            with gr.Tab("Invoice 助理"):
+                gr.Markdown("## 订单详情Excel上传与处理")
+                
+                # 文件上传组件
+                excel_file = gr.File(label="上传订单详情Excel", file_types=[".xlsx", ".xls"])
+                
+                # 数据表格显示组件
+                excel_output = gr.Dataframe(label="Excel内容预览")
+                
+                # 状态消息组件
+                status_message = gr.Textbox(label="处理状态", lines=1)
+                
+                # 处理Excel文件的函数
+                def process_excel(file):
+                    if file is None:
+                        return None, "请上传Excel文件"
+                    
+                    try:
+                        # 读取Excel文件
+                        df = pd.read_excel(file.name)
+                        
+                        # 返回数据表格和成功消息
+                        return df.head(100), f"成功读取Excel文件，共{len(df)}行数据"
+                    except Exception as e:
+                        return None, f"处理Excel文件出错: {str(e)}"
+                
+                # 上传按钮
+                upload_btn = gr.Button("上传并处理")
+                upload_btn.click(fn=process_excel, inputs=[excel_file], outputs=[excel_output, status_message])
 
     return demo
 
