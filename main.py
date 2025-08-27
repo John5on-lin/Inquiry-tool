@@ -246,26 +246,26 @@ def create_interface():
                     outputs=[result_output]
                 )
 
-            # Tab 2: Invoice 助理
-            with gr.Tab("Invoice 助理"):
-                gr.Markdown("## 订单详情Excel上传与处理")
+            # # Tab 2: Invoice 助理
+            # with gr.Tab("Invoice 助理"):
+            #     gr.Markdown("## 订单详情Excel上传与处理")
                 
-                # 文件上传组件
-                excel_file = gr.File(label="上传订单详情Excel", type="filepath", file_count="single", file_types=[".xlsx", ".xls"])
+            #     # 文件上传组件
+            #     excel_file = gr.File(label="上传订单详情Excel", type="filepath", file_count="single", file_types=[".xlsx", ".xls"])
                 
-                # 汇率输入
-                exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
+            #     # 汇率输入
+            #     exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
                 
-                # 上传按钮
-                upload_btn = gr.Button("上传并处理")
+            #     # 上传按钮
+            #     upload_btn = gr.Button("上传并处理")
                                 
-                # 状态消息组件
-                status_message = gr.Textbox(label="处理状态", lines=1)
+            #     # 状态消息组件
+            #     status_message = gr.Textbox(label="处理状态", lines=1)
                 
-                # 发票信息展示组件
-                invoice_output = gr.HTML(label="发票信息")
+            #     # 发票信息展示组件
+            #     invoice_output = gr.HTML(label="发票信息")
 
-                upload_btn.click(fn=process_excel, inputs=[excel_file, exchange_rate], outputs=[status_message, invoice_output])
+            #     upload_btn.click(fn=process_excel, inputs=[excel_file, exchange_rate], outputs=[status_message, invoice_output])
 
     return demo
 
