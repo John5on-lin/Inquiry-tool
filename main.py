@@ -278,6 +278,6 @@ if __name__ == "__main__":
     # print("=== END DEBUG ===")
     
     # 从环境变量获取服务器配置，默认值用于本地开发
-    server_name = os.getenv('SERVER_NAME', '127.0.0.1')
+    server_name = os.getenv('SERVER_NAME', '0.0.0.0')
     server_port = int(os.getenv('SERVER_PORT', '7860'))
-    demo.launch(server_name=server_name, server_port=server_port)
+    demo.launch(server_name=server_name, server_port=server_port,show_api=False)
