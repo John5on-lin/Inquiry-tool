@@ -1,4 +1,9 @@
 # 说明文字
+# 诊断Render部署脚本
+from diagnostics import print_env_info
+
+print_env_info() 
+
 import logging
 # 配置日志
 logging.basicConfig(
