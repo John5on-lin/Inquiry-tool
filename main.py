@@ -251,7 +251,8 @@ def create_interface():
                 gr.Markdown("## 订单详情Excel上传与处理")
                 
                 # 文件上传组件
-                excel_file = gr.File(label="上传订单详情Excel", file_count="single", file_types=[".xlsx", ".xls"])
+                # excel_file = gr.File(label="上传订单详情Excel", file_count="single", file_types=[".xlsx", ".xls"])
+                excel_file = gr.File(label="上传订单详情Excel")
                 
                 # 汇率输入
                 exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
@@ -272,9 +273,9 @@ def create_interface():
 if __name__ == "__main__":
     demo = create_interface()
     # Debug API Info
-    print("=== DEBUG: API Info ===")
-    print(demo.get_api_info())
-    print("=== END DEBUG ===")
+    # print("=== DEBUG: API Info ===")
+    # print(demo.get_api_info())
+    # print("=== END DEBUG ===")
     
     # 从环境变量获取服务器配置，默认值用于本地开发
     server_name = os.getenv('SERVER_NAME', '127.0.0.1')
