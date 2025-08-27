@@ -206,7 +206,7 @@ def create_interface():
                     with gr.Column():
                         exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
                     with gr.Column():
-                        volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000, precision=0)
+                        volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000)
                 shipping_rules_btn = gr.Button("查询运费表")
 
                 # 第三步：选择确认货代公司
@@ -251,7 +251,7 @@ def create_interface():
                 gr.Markdown("## 订单详情Excel上传与处理")
                 
                 # 文件上传组件
-                excel_file = gr.File(label="上传订单详情Excel", type="filepath")
+                excel_file = gr.File(label="上传订单详情Excel", type="filepath", file_count="single", file_types=[".xlsx", ".xls"])
                 
                 # 汇率输入
                 exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
@@ -271,7 +271,12 @@ def create_interface():
 
 if __name__ == "__main__":
     demo = create_interface()
+    # Debug API Info
+    print("=== DEBUG: API Info ===")
+    print(demo.get_api_info())
+    print("=== END DEBUG ===")
+    
     # 从环境变量获取服务器配置，默认值用于本地开发
     server_name = os.getenv('SERVER_NAME', '127.0.0.1')
     server_port = int(os.getenv('SERVER_PORT', '7860'))
-    demo.launch(server_name=server_name, server_port=server_port,show_api=False)
+    demo.launch(server_name=server_name, server_port=server_port)
