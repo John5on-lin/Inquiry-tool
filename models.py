@@ -3,7 +3,7 @@ from dataclasses import dataclass
 @dataclass
 class Product:
     """产品数据模型"""
-    name: str
+    sku: str
     quantity: float
     weight: float  # 单个产品重量(g)
     attribute: str  # 产品属性(如: 带电)
@@ -41,6 +41,32 @@ class IossRule:
     country: str
     vat_rate: float  # VAT税率
     service_rate: float  # 服务费率
+
+@dataclass
+class Order:
+    """订单数据模型，用于存储导入的订单Excel信息"""
+    order_number: str
+    order_status: str
+    order_note: str
+    payment_time: str
+    country_code: str
+    country: str
+    product_name: str
+    shop_name: str
+    sku: str
+    combination_sku: str
+    quantity: int
+    total_weight: float
+
+@dataclass
+class Invoice:
+    """发票数据模型，用于展示最终发票信息"""
+    country: str
+    order_number: str
+    product_cost: float
+    shipping_cost: float
+    redelivery_cost: float = 0.0
+    total_charges: float = 0.0
 
 @dataclass
 class CalculationResult:

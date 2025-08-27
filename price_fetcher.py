@@ -236,8 +236,8 @@ class PriceFetcher:
             product_data = self.data_source.load_product_data()
 
             for product in products:
-                if product.name in product_data:
-                    data = product_data[product.name]
+                if product.sku in product_data:
+                    data = product_data[product.sku]
                     product.price = data['price']
                     product.attribute = data['attribute']
                     product.weight = data['weight']
@@ -247,9 +247,9 @@ class PriceFetcher:
                     product.ioss_price = data['ioss_price']
                     if 'image_url' in data:
                         product.image_url = data['image_url']
-                    logger.info(f"已找到产品'{product.name}'的完整数据")
+                    logger.info(f"已找到产品'{product.sku}'的完整数据")
                 else:
-                    logger.warning(f"未找到产品'{product.name}'的产品数据")
+                    logger.warning(f"未找到产品'{product.sku}'的产品数据")
 
             return products
 

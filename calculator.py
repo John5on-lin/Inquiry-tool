@@ -1,10 +1,12 @@
 from typing import List, Dict, Any
+from collections import defaultdict
 import logging
 import math
 from config import AppConfig
 from shipping_fetcher import GoogleSheetsShippingSource
+from price_fetcher import PriceFetcher
 from ioss_fetcher import IossFetcher
-from models import Product, ShippingRule, CalculationResult, IossRule
+from models import Product, ShippingRule, CalculationResult, IossRule, Order, Invoice
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ class Calculator:
         self.shipping_rules = Calculator._shipping_rules_cache
         
         self.ioss_fetcher = IossFetcher(config)
+        self.price_fetcher = PriceFetcher(config)
 
     def find_applicable_shipping_rules(self, products: List[Product], destination: str, volume_weight_ratio: int) -> List[Dict[str, Any]]:
         """查找所有适用的运费规则,给前端展示
@@ -236,7 +239,7 @@ class Calculator:
         total_product_price = 0.0
         for product in products:
             if product.total <= 0 and product.price > 0:
-                logger.info(f"开始计算，产品 {product.name} 总价格")
+                logger.info(f"开始计算，产品 {product.sku} 总价格")
                 product.total = product.price * product.quantity
             total_product_price += product.total
 
@@ -255,3 +258,79 @@ class Calculator:
         logger.info(f"总产品基础价格: {total_product_price}, 总IOSS税金: {total_ioss_tax}, 总运费: {total_shipping_fee}, 总金额: {total_amount}")
 
         return CalculationResult(products=products, total_amount=total_amount, ioss_taxes=total_ioss_tax), rule_info, ioss_info
+
+    def _group_orders_by_number(self, orders: List[Order]) -> Dict[str, List[Order]]:
+        """按交易编号分组订单的辅助方法"""
+        grouped = defaultdict(list)
+        for order in orders:
+            grouped[order.order_number].append(order)
+        return grouped
+
+    def calculate_order_total(self, orders: List[Order]) -> Dict[str, float]:
+        """计算每个订单的产品价格总和
+
+        Args:
+            orders: 订单对象列表
+
+        Returns:
+            字典，键为交易编号，值为该订单的产品价格总和
+        """
+        # 获取产品数据(利用缓存机制)
+        product_data = self.price_fetcher.data_source.load_product_data()
+
+        # 按交易编号分组订单
+        grouped_orders = self._group_orders_by_number(orders)
+
+        # 计算每个订单的产品价格总和
+        order_totals = {}
+        for order_number, order_list in grouped_orders.items():
+            total_price = 0.0
+            for order in order_list:
+                # 使用字典键查找查找产品价格
+                if order.sku in product_data:
+                    price = product_data[order.sku]['price']
+                    total_price += price * order.quantity
+                else:
+                    logger.warning(f"未找到SKU '{order.sku}' 的价格信息")
+            order_totals[order_number] = total_price
+            logger.info(f"订单 '{order_number}' 的产品价格总和: {total_price:.2f} 元")
+
+        return order_totals
+
+    def create_invoices(self, orders: List[Order], order_totals: Dict[str, float]) -> List[Invoice]:
+        """创建发票对象列表
+
+        Args:
+            orders: 订单对象列表
+            order_totals: 每个订单的产品价格总和字典
+
+        Returns:
+            发票对象列表
+        """
+        # 按交易编号分组订单
+        grouped_orders = self._group_orders_by_number(orders)
+
+        # 创建发票对象
+        invoices = []
+        for order_number, order_list in grouped_orders.items():
+            # 取第一个订单的国家信息
+            country = order_list[0].country if order_list else ''
+            # 获取产品总价
+            product_cost = order_totals.get(order_number, 0.0)
+            # 创建发票
+            invoice = Invoice(
+                country=country,
+                order_number=order_number,
+                product_cost=product_cost,
+                shipping_cost=0.0,  # 运费已设置为默认值
+                redelivery_cost=0.0
+            )
+            
+            # 已在Invoice对象创建时设置默认shipping cost 和redelivery cost
+
+            # 计算总费用
+            invoice.total_charges = invoice.product_cost + invoice.shipping_cost + invoice.redelivery_cost
+            invoices.append(invoice)
+            logger.info(f"已创建发票: 订单编号 '{order_number}', 产品成本: {product_cost:.2f} 元, 运费: {invoice.shipping_cost:.2f} 元, 总费用: {invoice.total_charges:.2f} 元")
+
+        return invoices

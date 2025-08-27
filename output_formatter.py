@@ -1,5 +1,5 @@
 from typing import List
-from models import Product, CalculationResult
+from models import Product, CalculationResult, Invoice, Order
 
 class OutputFormatter:
     """输出格式化器"""
@@ -25,10 +25,10 @@ class OutputFormatter:
             if product.price > 0:
                 product_total = product.price * product.quantity
                 total_product_price += product_total
-                print(f"{product.name:<15} {product.price:<10.2f} {product.quantity:<10} {product_total:<10.2f}")
+                print(f"{product.sku:<15} {product.price:<10.2f} {product.quantity:<10} {product_total:<10.2f}")
             else:
-                print(f"{product.name:<15} {'-':<10} {'-':<10} {'-':<10}")
-                print(f"产品 '{product.name}' 未找到价格信息")
+                print(f"{product.sku:<15} {'-':<10} {'-':<10} {'-':<10}")
+                print(f"产品 '{product.sku}' 未找到价格信息")
         
         # 打印所有运费价格信息
         print("\n\n------------- 运费价格信息 -------------")
@@ -50,9 +50,9 @@ class OutputFormatter:
                 registration_fee = rule_info.get('registration_fee', 0)
                 
                 total_shipping_fee += product.shipping_fee
-                print(f"{product.name:<15} {shipping_company:<15} {destination:<10} {region:<10} {estimated_delivery_time:<10} {actual_weight:<10.0f} {first_weight}g/{first_weight_fee:.3f}元{'':<5} {additional_weight}g/{additional_weight_price:.3f}元{'':<5} {registration_fee:<10.2f} {product.shipping_fee:<10.2f}")
+                print(f"{product.sku:<15} {shipping_company:<15} {destination:<10} {region:<10} {estimated_delivery_time:<10} {actual_weight:<10.0f} {first_weight}g/{first_weight_fee:.3f}元{'':<5} {additional_weight}g/{additional_weight_price:.3f}元{'':<5} {registration_fee:<10.2f} {product.shipping_fee:<10.2f}")
             else:
-                print(f"{product.name:<15} {'-':<15} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10}")
+                print(f"{product.sku:<15} {'-':<15} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10} {'-':<10}")
         
         # 打印IOSS税金信息
         print("\n\n------------- IOSS税金信息 -------------")
@@ -106,9 +106,9 @@ class OutputFormatter:
                 # 获取产品的实际重量和体积重量
                 actual_weight = getattr(p, 'actual_weight', 0)
                 volume_weight = getattr(p, 'volume_weight', 0)
-                html_result += f"<tr><td>{p.name}</td><td>{p.price:.2f}</td><td>{p.quantity}</td><td>{product_total:.2f} RMB ({product_total_usd:.2f} USD)</td><td>{actual_weight:.2f}</td><td>{volume_weight:.2f}</td></tr>"
+                html_result += f"<tr><td>{p.sku}</td><td>{p.price:.2f}</td><td>{p.quantity}</td><td>{product_total:.2f} RMB ({product_total_usd:.2f} USD)</td><td>{actual_weight:.2f}</td><td>{volume_weight:.2f}</td></tr>"
             else:
-                html_result += f"<tr><td>{p.name}</td><td>-</td><td>{p.quantity}</td><td>-</td><td>-</td><td>-</td></tr>"
+                html_result += f"<tr><td>{p.sku}</td><td>-</td><td>{p.quantity}</td><td>-</td><td>-</td><td>-</td></tr>"
 
         html_result += "</table>"
         html_result += "</div>"
@@ -189,15 +189,70 @@ class OutputFormatter:
         html_images = "<div style='display: flex; flex-wrap: wrap; gap: 20px;'>"
         for product in products:
             html_images += f"<div style='text-align: center;'>"
-            html_images += f"<h3>{product.name}</h3>"
+            html_images += f"<h3>{product.sku}</h3>"
             if hasattr(product, 'image_url') and product.image_url:
-                html_images += f"<img src='{product.image_url}' alt='{product.name}' style='max-width: 200px; max-height: 200px;'>"
+                html_images += f"<img src='{product.image_url}' alt='{product.sku}' style='max-width: 200px; max-height: 200px;'>"
             else:
                 html_images += f"<p>没有找到产品图片</p>"
             html_images += f"<p>数量: {product.quantity}</p>"
             html_images += f"</div>"
         html_images += "</div>"
         return html_images
+
+    @staticmethod
+    def format_invoices_as_html(invoices: List[Invoice], exchange_rate: float = 6.9) -> str:
+        """生成发票信息的HTML展示"""
+        html_result = "<div style='font-family: Arial, sans-serif;'>"
+        html_result += "<h2>发票信息</h2>"
+
+        # 发票表格
+        html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
+        html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse; width: 100%;'>"
+        html_result += "<tr><th>国家</th><th>订单编号</th><th>产品成本 (RMB)</th><th>产品成本 (USD)</th><th>运费 (RMB)</th><th>运费 (USD)</th><th>重发成本 (RMB)</th><th>总费用 (RMB)</th><th>总费用 (USD)</th></tr>"
+
+        for invoice in invoices:
+            product_cost_usd = invoice.product_cost / exchange_rate
+            shipping_cost_usd = invoice.shipping_cost / exchange_rate
+            redelivery_cost_usd = invoice.redelivery_cost / exchange_rate
+            total_charges_usd = invoice.total_charges / exchange_rate
+
+            html_result += f"<tr><td>{invoice.country}</td><td>{invoice.order_number}</td><td>{invoice.product_cost:.2f}</td><td>{product_cost_usd:.2f}</td><td>{invoice.shipping_cost:.2f}</td><td>{shipping_cost_usd:.2f}</td><td>{invoice.redelivery_cost:.2f}</td><td>{invoice.total_charges:.2f}</td><td>{total_charges_usd:.2f}</td></tr>"
+
+        html_result += "</table>"
+        html_result += "</div>"
+        html_result += "</div>"
+        return html_result
+
+    @staticmethod
+    def format_invoice_details_as_html(invoice: Invoice, orders: List[Order], exchange_rate: float = 6.9) -> str:
+        """生成单个发票的详细信息HTML展示"""
+        html_result = "<div style='font-family: Arial, sans-serif;'>"
+        html_result += f"<h2>发票详情 - 订单 {invoice.order_number}</h2>"
+
+        # 发票基本信息
+        html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
+        html_result += "<h3>基本信息</h3>"
+        html_result += f"<p>国家: {invoice.country}</p>"
+        html_result += f"<p>订单编号: {invoice.order_number}</p>"
+        html_result += f"<p>产品成本: {invoice.product_cost:.2f} RMB ({invoice.product_cost/exchange_rate:.2f} USD)</p>"
+        html_result += f"<p>运费: {invoice.shipping_cost:.2f} RMB ({invoice.shipping_cost/exchange_rate:.2f} USD)</p>"
+        html_result += f"<p>重发成本: {invoice.redelivery_cost:.2f} RMB ({invoice.redelivery_cost/exchange_rate:.2f} USD)</p>"
+        html_result += f"<p>总费用: {invoice.total_charges:.2f} RMB ({invoice.total_charges/exchange_rate:.2f} USD)</p>"
+        html_result += "</div>"
+
+        # 订单项目明细
+        html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
+        html_result += "<h3>订单项目明细</h3>"
+        html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse; width: 100%;'>"
+        html_result += "<tr><th>产品名称</th><th>SKU</th><th>组合SKU</th><th>数量</th></tr>"
+
+        for order in orders:
+            html_result += f"<tr><td>{order.product_name}</td><td>{order.sku}</td><td>{order.combination_sku}</td><td>{order.quantity}</td></tr>"
+
+        html_result += "</table>"
+        html_result += "</div>"
+        html_result += "</div>"
+        return html_result
 
     @staticmethod
     def print_no_products_message() -> None:

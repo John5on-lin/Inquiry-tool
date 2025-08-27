@@ -11,45 +11,44 @@ from config import load_config
 from dotenv import load_dotenv
 import os
 import gradio as gr
-import pandas as pd
+from typing import List
 
 # 加载.env文件
 load_dotenv()
 from price_fetcher import PriceFetcher
 from calculator import Calculator
+from order_fetcher import OrderFetcher
 
 from output_formatter import OutputFormatter
 from input_handler import InputHandler
+from models import Order, Invoice
 
-# 全局变量存储产品数据
-products_with_data = []
+# 使用Gradio State管理产品数据，替代全局变量
 
-def load_products(input_text):
+def load_products(input_text, products_state):
     try:
         # 使用InputHandler解析产品信息
         products = InputHandler.parse_products_from_text(input_text)
 
         if not products:
-            return "未输入任何产品信息"
+            return "未输入任何产品信息", products_state
 
         config = load_config()
         
         # 获取产品完整数据（价格、重量、尺寸等）
         price_fetcher = PriceFetcher(config)
-        global products_with_data
-        products_with_data = price_fetcher.fetch_product_data(products)
+        updated_products = price_fetcher.fetch_product_data(products)
         
         # 使用OutputFormatter生成产品图片HTML
-        html_images = OutputFormatter.format_product_images(products_with_data)
+        html_images = OutputFormatter.format_product_images(updated_products)
 
-        return html_images
+        return html_images, updated_products
     except Exception as e:
         return f"处理错误: {str(e)}"
 
-def load_shipping_rules(destination, volume_weight_ratio):
+def load_shipping_rules(destination, volume_weight_ratio, products_state):
     try:
-        global products_with_data
-        if not products_with_data:
+        if not products_state:
             logger.info("没有产品数据，返回空的运费规则")
             return [], {}
 
@@ -61,7 +60,7 @@ def load_shipping_rules(destination, volume_weight_ratio):
         calculator_instance = Calculator(config)
         
         # 调用方法获得匹配的运费规则
-        data = calculator_instance.find_applicable_shipping_rules(products_with_data, destination, volume_weight_ratio)
+        data = calculator_instance.find_applicable_shipping_rules(products_state, destination, volume_weight_ratio)
         logger.info(f"find_applicable_shipping_rules返回数据类型: {type(data)}, 数据长度: {len(data)}")
         if data:
             logger.info(f"返回数据第一项: {data[0]}")
@@ -105,10 +104,39 @@ def show_selection(selected_ids, id_map):
             results.append(f"无效的选择: {sid}")
     return "\n".join(results), selected_rule
 
-def check_pricing(destination, exchange_rate, selected_shipping_rules):
+def process_excel(file, rate):
+    if file is None:
+        return None, "请上传Excel文件", ""
+    
     try:
-        global products_with_data
-        if not products_with_data:
+        # 加载配置
+        config = load_config()
+
+        # 使用OrderFetcher处理订单数据
+        order_fetcher = OrderFetcher(config)
+        orders = order_fetcher.load_orders_from_excel(file.name)
+        
+        # 初始化计算器
+        calculator = Calculator(config)
+
+        # 计算每个订单的产品价格总和
+        order_totals = calculator.calculate_order_total(orders)
+
+        # 创建发票
+        invoices = calculator.create_invoices(orders, order_totals)
+        
+        # 格式化发票信息为HTML
+        html_result = OutputFormatter.format_invoices_as_html(invoices, rate)
+        
+        # 返回数据表格、成功消息和发票HTML
+        return f"成功处理{len(orders)}个订单，生成{len(invoices)}张发票", html_result
+    except Exception as e:
+        logger.error(f"处理Excel文件出错: {str(e)}")
+        return None, f"处理Excel文件出错: {str(e)}", ""
+
+def check_pricing(destination, exchange_rate, selected_shipping_rules, products_state):
+    try:
+        if not products_state:
             return "请先加载产品信息"
 
         if not destination:
@@ -131,7 +159,7 @@ def check_pricing(destination, exchange_rate, selected_shipping_rules):
         calculator = Calculator(config)
         # 传递用户选择的运费规则到计算函数
         result, rule_info, ioss_info = calculator.calculate_totals(
-            products_with_data, 
+            products_state, 
             destination, 
             selected_shipping_rules
         )
@@ -185,12 +213,13 @@ def create_interface():
 
                 # State
                 id_map_state = gr.State({}) 
-                selection_text_state = gr.State(None) 
+                selection_text_state = gr.State(None)
+                products_state = gr.State([]) 
 
                 # 交互逻辑
                 shipping_rules_btn.click(
                     fn=load_shipping_rules,
-                    inputs=[destination, volume_weight_ratio],
+                    inputs=[destination, volume_weight_ratio, products_state],
                     outputs=[checkbox, id_map_state]
                 )
                 checkbox.change(
@@ -205,10 +234,10 @@ def create_interface():
                 result_output = gr.HTML(label="报价查询结果")
 
                 # 按钮事件
-                load_btn.click(fn=load_products, inputs=[input_text], outputs=[product_images])
+                load_btn.click(fn=load_products, inputs=[input_text, products_state], outputs=[product_images, products_state])
                 submit_btn.click(
                     fn=check_pricing,
-                    inputs=[destination, exchange_rate, selection_text_state],
+                    inputs=[destination, exchange_rate, selection_text_state, products_state],
                     outputs=[result_output]
                 )
 
@@ -219,29 +248,19 @@ def create_interface():
                 # 文件上传组件
                 excel_file = gr.File(label="上传订单详情Excel", file_types=[".xlsx", ".xls"])
                 
-                # 数据表格显示组件
-                excel_output = gr.Dataframe(label="Excel内容预览")
-                
-                # 状态消息组件
-                status_message = gr.Textbox(label="处理状态", lines=1)
-                
-                # 处理Excel文件的函数
-                def process_excel(file):
-                    if file is None:
-                        return None, "请上传Excel文件"
-                    
-                    try:
-                        # 读取Excel文件
-                        df = pd.read_excel(file.name)
-                        
-                        # 返回数据表格和成功消息
-                        return df.head(100), f"成功读取Excel文件，共{len(df)}行数据"
-                    except Exception as e:
-                        return None, f"处理Excel文件出错: {str(e)}"
+                # 汇率输入
+                exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
                 
                 # 上传按钮
                 upload_btn = gr.Button("上传并处理")
-                upload_btn.click(fn=process_excel, inputs=[excel_file], outputs=[excel_output, status_message])
+                                
+                # 状态消息组件
+                status_message = gr.Textbox(label="处理状态", lines=1)
+                
+                # 发票信息展示组件
+                invoice_output = gr.HTML(label="发票信息")
+
+                upload_btn.click(fn=process_excel, inputs=[excel_file, exchange_rate], outputs=[status_message, invoice_output])
 
     return demo
 

@@ -10,19 +10,19 @@ class InputHandler:
         print("\n请输入产品信息（输入空产品名称结束）")
         
         while True:
-            product_name = input("请输入产品名称: ").strip()
+            sku = input("请输入产品SKU: ").strip()
             
             # 检查是否结束输入
-            if not product_name:
+            if not sku:
                 print("产品输入已结束")
                 break
             
             # 获取并验证数量
             quantity = InputHandler._get_valid_quantity()
             
-            print(f"已添加产品: {product_name}, 数量: {quantity}")
+            print(f"已添加产品: {sku}, 数量: {quantity}")
             products.append(Product(
-                name=product_name, 
+                sku=sku, 
                 quantity=quantity, 
                 weight=0.0,  # 重量将从Sheet1获取
                 attribute="",  # 属性将从Sheet1获取
@@ -51,15 +51,15 @@ class InputHandler:
             line = line.replace('，', ',')
             parts = line.split(',')
             if len(parts) != 2:
-                raise ValueError(f"格式错误：{line}。请使用'产品名称,数量'的格式。例如：苹果,2")
+                raise ValueError(f"格式错误：{line}。请使用'SKU,数量'的格式。例如：APL-001,2")
             name = parts[0].strip()
             try:
                 quantity = float(parts[1].strip())
                 products.append(Product(
-                    name=name, 
-                    quantity=quantity, 
-                    weight=0.0,  # 重量将从Sheet1获取
-                    attribute="",  # 属性将从Sheet1获取
+                    sku=name, 
+                    quantity=quantity,
+                    weight=0.0,
+                    attribute="",
                 ))
             except ValueError as e:
                 raise ValueError(f"数据错误：{str(e)}。数量必须是数字。")
