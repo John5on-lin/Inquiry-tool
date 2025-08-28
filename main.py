@@ -181,70 +181,70 @@ def create_interface():
         gr.Markdown("# 工具集合")
 
         with gr.Tabs():
-            # Tab 1: 价格查询与运费计算
-            with gr.Tab("产品价格与运费"):
-                gr.Markdown("## 产品价格查询与运费计算工具")
+            # # Tab 1: 价格查询与运费计算
+            # with gr.Tab("产品价格与运费"):
+            #     gr.Markdown("## 产品价格查询与运费计算工具")
 
-                # 第一步：输入产品信息
-                with gr.Row():
-                    with gr.Column(scale=4):
-                        input_text = gr.Textbox(
-                            lines=5,
-                            label="输入产品信息（每行一个产品，格式：产品名称,数量）",
-                            placeholder="例如：\n苹果, 2\n香蕉, 3"
-                        )
-                    with gr.Column(scale=1, min_width=100):
-                        load_btn = gr.Button("加载产品")
+            #     # 第一步：输入产品信息
+            #     with gr.Row():
+            #         with gr.Column(scale=4):
+            #             input_text = gr.Textbox(
+            #                 lines=5,
+            #                 label="输入产品信息（每行一个产品，格式：产品名称,数量）",
+            #                 placeholder="例如：\n苹果, 2\n香蕉, 3"
+            #             )
+            #         with gr.Column(scale=1, min_width=100):
+            #             load_btn = gr.Button("加载产品")
 
-                # 产品图片展示区域
-                product_images = gr.HTML(label="产品图片")
+            #     # 产品图片展示区域
+            #     product_images = gr.HTML(label="产品图片")
 
-                # 第二步：输入目的地、汇率和体积重量转换比
-                with gr.Row():
-                    with gr.Column():
-                        destination = gr.Textbox(label="目的地国家", placeholder="例如：美国")
-                    with gr.Column():
-                        exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
-                    with gr.Column():
-                        volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000)
-                shipping_rules_btn = gr.Button("查询运费表")
+            #     # 第二步：输入目的地、汇率和体积重量转换比
+            #     with gr.Row():
+            #         with gr.Column():
+            #             destination = gr.Textbox(label="目的地国家", placeholder="例如：美国")
+            #         with gr.Column():
+            #             exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
+            #         with gr.Column():
+            #             volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000)
+            #     shipping_rules_btn = gr.Button("查询运费表")
 
-                # 第三步：选择确认货代公司
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("### 选择货代公司")
-                        checkbox = gr.CheckboxGroup(choices=[], label="可选公司", info="勾选需要的货代公司")
-                        selection_output = gr.Textbox(label="选择结果", lines=5)
+            #     # 第三步：选择确认货代公司
+            #     with gr.Row():
+            #         with gr.Column():
+            #             gr.Markdown("### 选择货代公司")
+            #             checkbox = gr.CheckboxGroup(choices=[], label="可选公司", info="勾选需要的货代公司")
+            #             selection_output = gr.Textbox(label="选择结果", lines=5)
 
-                # State
-                id_map_state = gr.State({}) 
-                selection_text_state = gr.State(None)
-                products_state = gr.State([]) 
+            #     # State
+            #     id_map_state = gr.State({}) 
+            #     selection_text_state = gr.State(None)
+            #     products_state = gr.State([]) 
 
-                # 交互逻辑
-                shipping_rules_btn.click(
-                    fn=load_shipping_rules,
-                    inputs=[destination, volume_weight_ratio, products_state],
-                    outputs=[checkbox, id_map_state]
-                )
-                checkbox.change(
-                    fn=show_selection,
-                    inputs=[checkbox, id_map_state],
-                    outputs=[selection_output, selection_text_state]
-                )
-                logger.info("已更新checkbox.change事件处理")
+            #     # 交互逻辑
+            #     shipping_rules_btn.click(
+            #         fn=load_shipping_rules,
+            #         inputs=[destination, volume_weight_ratio, products_state],
+            #         outputs=[checkbox, id_map_state]
+            #     )
+            #     checkbox.change(
+            #         fn=show_selection,
+            #         inputs=[checkbox, id_map_state],
+            #         outputs=[selection_output, selection_text_state]
+            #     )
+            #     logger.info("已更新checkbox.change事件处理")
 
-                # 提交按钮
-                submit_btn = gr.Button("报价查询")
-                result_output = gr.HTML(label="报价查询结果")
+            #     # 提交按钮
+            #     submit_btn = gr.Button("报价查询")
+            #     result_output = gr.HTML(label="报价查询结果")
 
-                # 按钮事件
-                load_btn.click(fn=load_products, inputs=[input_text, products_state], outputs=[product_images, products_state])
-                submit_btn.click(
-                    fn=check_pricing,
-                    inputs=[destination, exchange_rate, selection_text_state, products_state],
-                    outputs=[result_output]
-                )
+            #     # 按钮事件
+            #     load_btn.click(fn=load_products, inputs=[input_text, products_state], outputs=[product_images, products_state])
+            #     submit_btn.click(
+            #         fn=check_pricing,
+            #         inputs=[destination, exchange_rate, selection_text_state, products_state],
+            #         outputs=[result_output]
+            #     )
 
             # Tab 2: Invoice 助理
             with gr.Tab("Invoice 助理"):
@@ -272,10 +272,11 @@ def create_interface():
 
 if __name__ == "__main__":
     demo = create_interface()
+    
     # Debug API Info
-    # print("=== DEBUG: API Info ===")
-    # print(demo.get_api_info())
-    # print("=== END DEBUG ===")
+    print("=== DEBUG: API Info ===")
+    print(demo.get_api_info())
+    print("=== END DEBUG ===")
     
     # 从环境变量获取服务器配置，默认值用于本地开发
     server_name = os.getenv('SERVER_NAME', '0.0.0.0')
