@@ -6,3 +6,4 @@ openpyxl==3.1.5
 gspread==6.0.2
 google-auth==2.29.0
 python-dotenv==1.0.1
+pydantic==2.4.2
