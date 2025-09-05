@@ -57,6 +57,17 @@ class Order:
     combination_sku: str
     quantity: int
     total_weight: float
+    uniform_cost_price: float = 0.0
+
+@dataclass
+class ShippingOrder:
+    """运费订单数据模型"""
+    order_number: str
+    shipping_channel: str
+    tracking_number: str
+    country: str
+    total_weight: float  # 货物总重量(g)
+    actual_shipping_fee: float  # 实际运费
 
 @dataclass
 class Invoice:
@@ -65,6 +76,7 @@ class Invoice:
     order_number: str
     product_cost: float
     shipping_cost: float
+    ioss_cost: float
     redelivery_cost: float = 0.0
     total_charges: float = 0.0
 

@@ -24,6 +24,12 @@ class AppConfig:
     ioss_price_column: str
     image_url_column: str
     
+    # 订单Excel列名映射
+    order_excel_columns: dict
+    
+    # 运费Excel列名映射
+    shipping_excel_columns: dict
+    
     # Google Sheets配置
     google_sheets: dict
     google_sheets_shipping_sheet_name: str
@@ -72,6 +78,33 @@ def load_config() -> AppConfig:
     ioss_vat_rate_column = os.getenv('IOSS_VAT_RATE_COLUMN', 'VAT税率')
     ioss_service_rate_column = os.getenv('IOSS_SERVICE_RATE_COLUMN', '服务费率')
     
+    # 订单Excel列名映射
+    order_excel_columns = {
+        'order_number': os.getenv('ORDER_COLUMN_ORDER_NUMBER', '交易编号'),
+        'order_status': os.getenv('ORDER_COLUMN_ORDER_STATUS', '订单状态'),
+        'sku': os.getenv('ORDER_COLUMN_SKU', 'SKU'),
+        'quantity': os.getenv('ORDER_COLUMN_QUANTITY', '商品数量'),
+        'order_note': os.getenv('ORDER_COLUMN_ORDER_NOTE', '订单备注'),
+        'payment_time': os.getenv('ORDER_COLUMN_PAYMENT_TIME', '支付时间'),
+        'country_code': os.getenv('ORDER_COLUMN_COUNTRY_CODE', '国家代码'),
+        'country': os.getenv('ORDER_COLUMN_COUNTRY', '国家'),
+        'product_name': os.getenv('ORDER_COLUMN_PRODUCT_NAME', '产品名称'),
+        'shop_name': os.getenv('ORDER_COLUMN_SHOP_NAME', '店铺名称'),
+        'combination_sku': os.getenv('ORDER_COLUMN_COMBINATION_SKU', '组合SKU'),
+        'total_weight': os.getenv('ORDER_COLUMN_TOTAL_WEIGHT', '总重量'),
+        'uniform_cost_price': os.getenv('ORDER_COLUMN_UNIFORM_COST_PRICE', '统一成本价')
+    }
+    
+    # 运费Excel列名映射
+    shipping_excel_columns = {
+        'order_number': os.getenv('SHIPPING_COLUMN_ORDER_NUMBER', '交易编号'),
+        'actual_shipping_fee': os.getenv('SHIPPING_COLUMN_ACTUAL_FEE', '实际运费'),
+        'shipping_channel': os.getenv('SHIPPING_COLUMN_CHANNEL', '物流渠道'),
+        'tracking_number': os.getenv('SHIPPING_COLUMN_TRACKING', '跟踪号'),
+        'country': os.getenv('SHIPPING_COLUMN_COUNTRY', '国家'),
+        'total_weight': os.getenv('SHIPPING_COLUMN_TOTAL_WEIGHT', '总重量(g)')
+    }
+    
     # 构建配置对象
     config = AppConfig(
         app_version=app_version,
@@ -88,6 +121,8 @@ def load_config() -> AppConfig:
         height_column=height_column,
         ioss_price_column=ioss_price_column,
         image_url_column=image_url_column,
+        order_excel_columns=order_excel_columns,
+        shipping_excel_columns=shipping_excel_columns,
         google_sheets={
             'document_id': google_sheets_document_id,
             'sheet_name': google_sheets_sheet_name,

@@ -208,7 +208,7 @@ class OutputFormatter:
         # 发票表格
         html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
         html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse; width: 100%;'>"
-        html_result += "<tr><th>国家</th><th>订单编号</th><th>产品成本 (RMB)</th><th>产品成本 (USD)</th><th>运费 (RMB)</th><th>运费 (USD)</th><th>重发成本 (RMB)</th><th>总费用 (RMB)</th><th>总费用 (USD)</th></tr>"
+        html_result += "<tr><th>国家</th><th>订单编号</th><th>产品成本 (RMB)</th><th>产品成本 (USD)</th><th>运费 (RMB)</th><th>运费 (USD)</th><th>IOSS成本 (RMB)</th><th>IOSS成本 (USD)</th><th>重发成本 (RMB)</th><th>总费用 (RMB)</th><th>总费用 (USD)</th></tr>"
 
         for invoice in invoices:
             product_cost_usd = invoice.product_cost / exchange_rate
@@ -216,7 +216,7 @@ class OutputFormatter:
             redelivery_cost_usd = invoice.redelivery_cost / exchange_rate
             total_charges_usd = invoice.total_charges / exchange_rate
 
-            html_result += f"<tr><td>{invoice.country}</td><td>{invoice.order_number}</td><td>{invoice.product_cost:.2f}</td><td>{product_cost_usd:.2f}</td><td>{invoice.shipping_cost:.2f}</td><td>{shipping_cost_usd:.2f}</td><td>{invoice.redelivery_cost:.2f}</td><td>{invoice.total_charges:.2f}</td><td>{total_charges_usd:.2f}</td></tr>"
+            html_result += f"<tr><td>{invoice.country}</td><td>{invoice.order_number}</td><td>{invoice.product_cost:.2f}</td><td>{product_cost_usd:.2f}</td><td>{invoice.shipping_cost:.2f}</td><td>{shipping_cost_usd:.2f}</td><td>{invoice.ioss_cost:.2f}</td><td>{invoice.ioss_cost/exchange_rate:.2f}</td><td>{invoice.redelivery_cost:.2f}</td><td>{invoice.total_charges:.2f}</td><td>{total_charges_usd:.2f}</td></tr>"
 
         html_result += "</table>"
         html_result += "</div>"
@@ -236,6 +236,7 @@ class OutputFormatter:
         html_result += f"<p>订单编号: {invoice.order_number}</p>"
         html_result += f"<p>产品成本: {invoice.product_cost:.2f} RMB ({invoice.product_cost/exchange_rate:.2f} USD)</p>"
         html_result += f"<p>运费: {invoice.shipping_cost:.2f} RMB ({invoice.shipping_cost/exchange_rate:.2f} USD)</p>"
+        html_result += f"<p>IOSS成本: {invoice.ioss_cost:.2f} RMB ({invoice.ioss_cost/exchange_rate:.2f} USD)</p>"
         html_result += f"<p>重发成本: {invoice.redelivery_cost:.2f} RMB ({invoice.redelivery_cost/exchange_rate:.2f} USD)</p>"
         html_result += f"<p>总费用: {invoice.total_charges:.2f} RMB ({invoice.total_charges/exchange_rate:.2f} USD)</p>"
         html_result += "</div>"
@@ -244,10 +245,10 @@ class OutputFormatter:
         html_result += "<div style='margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;'>"
         html_result += "<h3>订单项目明细</h3>"
         html_result += "<table border='1' cellspacing='0' cellpadding='5' style='border-collapse: collapse; width: 100%;'>"
-        html_result += "<tr><th>产品名称</th><th>SKU</th><th>组合SKU</th><th>数量</th></tr>"
+        html_result += "<tr><th>产品名称</th><th>SKU</th><th>组合SKU</th><th>数量</th><th>统一成本价</th></tr>"
 
         for order in orders:
-            html_result += f"<tr><td>{order.product_name}</td><td>{order.sku}</td><td>{order.combination_sku}</td><td>{order.quantity}</td></tr>"
+            html_result += f"<tr><td>{order.product_name}</td><td>{order.sku}</td><td>{order.combination_sku}</td><td>{order.quantity}</td><td>{order.uniform_cost_price:.2f}</td></tr>"
 
         html_result += "</table>"
         html_result += "</div>"

@@ -68,8 +68,8 @@ class Calculator:
             product_attributes.add(product.attribute)
         logger.info(f"累积物品重量: {total_weight}g")
 
-        # 定义属性优先级: 药品 > 保健品 > 敏感品 > 带电 > 普货
-        attribute_priority = ['药品', '保健品', '敏感品', '带电', '普货']
+        # 定义属性优先级: 食品 > 纯电 > 特货 > 带电 > 普货
+        attribute_priority = ['食品', '纯电', '特货', '带电', '普货']
 
         # 根据优先级确定最高优先级的属性
         for attr in attribute_priority:
@@ -266,43 +266,82 @@ class Calculator:
             grouped[order.order_number].append(order)
         return grouped
 
-    def calculate_order_total(self, orders: List[Order]) -> Dict[str, float]:
-        """计算每个订单的产品价格总和
+    def calculate_order_totals(self, orders: List[Order]) -> tuple[Dict[str, float], Dict[str, float]]:
+        """同时计算每个订单的产品总价和IOSS费用
 
         Args:
             orders: 订单对象列表
 
         Returns:
-            字典，键为交易编号，值为该订单的产品价格总和
+            tuple: 包含产品总价字典和IOSS费用字典的元组
         """
+        if not orders:
+            logger.warning("订单列表为空，无法计算订单总计")
+            return {}, {}
+
+        # 获取第一个订单的国家作为基准
+        base_country = orders[0].country
+        # 验证所有订单国家是否一致
+        for order in orders:
+            if order.country.lower() != base_country.lower():
+                logger.warning(f"订单国家不一致: 基准国家={base_country}, 订单{order.order_number}国家={order.country}")
+
+        # 只获取一次IOSS规则
+        ioss_rule = self.ioss_fetcher.get_ioss_rule(base_country)
+        if not ioss_rule:
+            logger.warning(f"未找到国家'{base_country}'的IOSS税率规则，所有订单IOSS费用将为0")
+            ioss_available = False
+        else:
+            ioss_available = True
+
         # 获取产品数据(利用缓存机制)
         product_data = self.price_fetcher.data_source.load_product_data()
 
         # 按交易编号分组订单
         grouped_orders = self._group_orders_by_number(orders)
 
-        # 计算每个订单的产品价格总和
-        order_totals = {}
+        order_product_totals = {}
+        order_ioss_totals = {}
+
         for order_number, order_list in grouped_orders.items():
-            total_price = 0.0
+            total_order_price = 0.0
+            # 计算产品总价
             for order in order_list:
-                # 使用字典键查找查找产品价格
-                if order.sku in product_data:
+                # 优先使用uniform_cost_price，如果有值的话
+                if order.uniform_cost_price > 0:
+                    total_order_price += order.uniform_cost_price * order.quantity
+                    logger.info(f"使用统一成本价: {order.sku}, 单价: {order.uniform_cost_price}, 数量: {order.quantity}")
+                elif order.sku in product_data:
+                    # 否则使用product_data中的价格
                     price = product_data[order.sku]['price']
-                    total_price += price * order.quantity
+                    total_order_price += price * order.quantity
                 else:
                     logger.warning(f"未找到SKU '{order.sku}' 的价格信息")
-            order_totals[order_number] = total_price
-            logger.info(f"订单 '{order_number}' 的产品价格总和: {total_price:.2f} 元")
 
-        return order_totals
+            order_product_totals[order_number] = total_order_price
+            logger.info(f"订单 '{order_number}' 的产品价格总和: {total_order_price:.2f} 元")
 
-    def create_invoices(self, orders: List[Order], order_totals: Dict[str, float]) -> List[Invoice]:
+            # 计算IOSS费用
+            if total_order_price > 0 and ioss_available:
+                ioss_cost = total_order_price * (ioss_rule.vat_rate + ioss_rule.service_rate)
+                order_ioss_totals[order_number] = round(ioss_cost, 2)
+                logger.info(f"订单 '{order_number}' 的IOSS费用: {ioss_cost:.2f} 元")
+            else:
+                order_ioss_totals[order_number] = 0.0
+                if total_order_price <= 0:
+                    logger.warning(f"订单 '{order_number}' 的产品总价无效: {total_order_price}")
+                else:
+                    logger.info(f"订单 '{order_number}' 未计算IOSS费用: 国家规则不存在")
+
+        return order_product_totals, order_ioss_totals
+
+    def create_invoices(self, orders: List[Order], order_totals: Dict[str, float], order_ioss_totals: Dict[str, float], shipping_cost_map: Dict[str, float]) -> List[Invoice]:
         """创建发票对象列表
 
         Args:
             orders: 订单对象列表
             order_totals: 每个订单的产品价格总和字典
+            order_ioss_totals: 每个订单的IOSS费用字典
 
         Returns:
             发票对象列表
@@ -317,20 +356,31 @@ class Calculator:
             country = order_list[0].country if order_list else ''
             # 获取产品总价
             product_cost = order_totals.get(order_number, 0.0)
+            # 获取IOSS费用
+            ioss_cost = order_ioss_totals.get(order_number, 0.0)
+            # 获取并验证运费
+            shipping_cost = shipping_cost_map.get(order_number, 0.0)
+            
+            # 验证运费值
+            if order_number not in shipping_cost_map:
+                logger.warning(f"订单 '{order_number}' 未找到对应的运费记录，将使用默认值0.0")
+            elif shipping_cost < 0:
+                logger.error(f"订单 '{order_number}' 的运费值为负数 ({shipping_cost})，已修正为0.0")
+                shipping_cost = 0.0
+            
             # 创建发票
             invoice = Invoice(
                 country=country,
                 order_number=order_number,
                 product_cost=product_cost,
-                shipping_cost=0.0,  # 运费已设置为默认值
+                shipping_cost=shipping_cost,
+                ioss_cost=ioss_cost, 
                 redelivery_cost=0.0
             )
             
-            # 已在Invoice对象创建时设置默认shipping cost 和redelivery cost
-
             # 计算总费用
-            invoice.total_charges = invoice.product_cost + invoice.shipping_cost + invoice.redelivery_cost
+            invoice.total_charges = invoice.product_cost + invoice.shipping_cost + invoice.ioss_cost + invoice.redelivery_cost
             invoices.append(invoice)
-            logger.info(f"已创建发票: 订单编号 '{order_number}', 产品成本: {product_cost:.2f} 元, 运费: {invoice.shipping_cost:.2f} 元, 总费用: {invoice.total_charges:.2f} 元")
+            logger.info(f"已创建发票: 订单编号 '{order_number}', 产品成本: {product_cost:.2f} 元, IOSS成本: {ioss_cost:.2f} 元, 总费用: {invoice.total_charges:.2f} 元")
 
         return invoices

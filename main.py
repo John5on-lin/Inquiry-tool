@@ -1,10 +1,6 @@
 # 说明文字
-# 诊断Render部署脚本
-from diagnostics import print_env_info
-
-print_env_info() 
-
 import logging
+import gradio as gr
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -15,20 +11,17 @@ logger = logging.getLogger(__name__)
 from config import load_config
 from dotenv import load_dotenv
 import os
-import gradio as gr
+from ui import create_interface
 from typing import List
 
 # 加载.env文件
 load_dotenv()
 from price_fetcher import PriceFetcher
 from calculator import Calculator
-from order_fetcher import OrderFetcher
+from excel_processor import validate_excel_files, load_excel_data, process_results
 
 from output_formatter import OutputFormatter
 from input_handler import InputHandler
-from models import Order, Invoice
-
-# 使用Gradio State管理产品数据，替代全局变量
 
 def load_products(input_text, products_state):
     try:
@@ -109,35 +102,26 @@ def show_selection(selected_ids, id_map):
             results.append(f"无效的选择: {sid}")
     return "\n".join(results), selected_rule
 
-def process_excel(file, rate):
-    if file is None:
-        return None, "请上传Excel文件", ""
-    
+def process_excel(product_excel_file, shipping_excel_file, exchange_rate):
     try:
+        # 验证文件
+        valid, message = validate_excel_files(product_excel_file.name, shipping_excel_file.name)
+        if not valid:
+            return message, ""
+
         # 加载配置
         config = load_config()
 
-        # 使用OrderFetcher处理订单数据
-        order_fetcher = OrderFetcher(config)
-        orders = order_fetcher.load_orders_from_excel(file.name)
-        
-        # 初始化计算器
-        calculator = Calculator(config)
+        # 加载数据
+        orders, shipping_orders = load_excel_data(config, product_excel_file.name, shipping_excel_file.name)
 
-        # 计算每个订单的产品价格总和
-        order_totals = calculator.calculate_order_total(orders)
+        # 处理结果
+        result_msg, html_result = process_results(config, orders, shipping_orders, exchange_rate)
 
-        # 创建发票
-        invoices = calculator.create_invoices(orders, order_totals)
-        
-        # 格式化发票信息为HTML
-        html_result = OutputFormatter.format_invoices_as_html(invoices, rate)
-        
-        # 返回数据表格、成功消息和发票HTML
-        return f"成功处理{len(orders)}个订单，生成{len(invoices)}张发票", html_result
+        return result_msg, html_result
     except Exception as e:
         logger.error(f"处理Excel文件出错: {str(e)}")
-        return None, f"处理Excel文件出错: {str(e)}", ""
+        return f"处理Excel文件出错: {str(e)}", ""
 
 def check_pricing(destination, exchange_rate, selected_shipping_rules, products_state):
     try:
@@ -176,108 +160,12 @@ def check_pricing(destination, exchange_rate, selected_shipping_rules, products_
     except Exception as e:
         return f"处理错误: {str(e)}"
 
-def create_interface():
-    with gr.Blocks(title="多功能工具", analytics_enabled=False) as demo:
-        gr.Markdown("# 工具集合")
-
-        with gr.Tabs():
-            # Tab 1: 价格查询与运费计算
-            with gr.Tab("产品价格与运费"):
-                gr.Markdown("## 产品价格查询与运费计算工具")
-
-                # 第一步：输入产品信息
-                with gr.Row():
-                    with gr.Column(scale=4):
-                        input_text = gr.Textbox(
-                            lines=5,
-                            label="输入产品信息（每行一个产品，格式：产品名称,数量）",
-                            placeholder="例如：\n苹果, 2\n香蕉, 3"
-                        )
-                    with gr.Column(scale=1, min_width=100):
-                        load_btn = gr.Button("加载产品")
-
-                # 产品图片展示区域
-                product_images = gr.HTML(label="产品图片")
-
-                # 第二步：输入目的地、汇率和体积重量转换比
-                with gr.Row():
-                    with gr.Column():
-                        destination = gr.Textbox(label="目的地国家", placeholder="例如：美国")
-                    with gr.Column():
-                        exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
-                    with gr.Column():
-                        volume_weight_ratio = gr.Number(label="体积重量转换比", value=6000)
-                shipping_rules_btn = gr.Button("查询运费表")
-
-                # 第三步：选择确认货代公司
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("### 选择货代公司")
-                        checkbox = gr.CheckboxGroup(choices=[], label="可选公司", info="勾选需要的货代公司")
-                        selection_output = gr.Textbox(label="选择结果", lines=5)
-
-                # State
-                id_map_state = gr.State({}) 
-                selection_text_state = gr.State(None)
-                products_state = gr.State([]) 
-
-                # 交互逻辑
-                shipping_rules_btn.click(
-                    fn=load_shipping_rules,
-                    inputs=[destination, volume_weight_ratio, products_state],
-                    outputs=[checkbox, id_map_state]
-                )
-                checkbox.change(
-                    fn=show_selection,
-                    inputs=[checkbox, id_map_state],
-                    outputs=[selection_output, selection_text_state]
-                )
-                logger.info("已更新checkbox.change事件处理")
-
-                # 提交按钮
-                submit_btn = gr.Button("报价查询")
-                result_output = gr.HTML(label="报价查询结果")
-
-                # 按钮事件
-                load_btn.click(fn=load_products, inputs=[input_text, products_state], outputs=[product_images, products_state])
-                submit_btn.click(
-                    fn=check_pricing,
-                    inputs=[destination, exchange_rate, selection_text_state, products_state],
-                    outputs=[result_output]
-                )
-
-            # Tab 2: Invoice 助理
-            with gr.Tab("Invoice 助理"):
-                gr.Markdown("## 订单详情Excel上传与处理")
-                
-                # 文件上传组件
-                excel_file = gr.File(label="上传订单详情Excel", file_count="single", file_types=[".xlsx", ".xls"])
-                
-                # 汇率输入
-                exchange_rate = gr.Number(label="美元换算汇率", value=6.9, precision=2)
-                
-                # 上传按钮
-                upload_btn = gr.Button("上传并处理")
-                                
-                # 状态消息组件
-                status_message = gr.Textbox(label="处理状态", lines=1)
-                
-                # 发票信息展示组件
-                invoice_output = gr.HTML(label="发票信息")
-
-                upload_btn.click(fn=process_excel, inputs=[excel_file, exchange_rate], outputs=[status_message, invoice_output])
-
-    return demo
-
 if __name__ == "__main__":
-    demo = create_interface()
-    
-    # Debug API Info
-    print("=== DEBUG: API Info ===")
-    print(demo.get_api_info())
-    print("=== END DEBUG ===")
-    
-    # 从环境变量获取服务器配置，默认值用于本地开发
+    # 诊断Render部署脚本
+    from diagnostics import print_env_info
+    print_env_info()
+    logging.basicConfig(level=logging.INFO)
+    interface = create_interface()
     server_name = os.getenv('SERVER_NAME', '0.0.0.0')
     server_port = int(os.getenv('SERVER_PORT', '7860'))
-    demo.launch(server_name=server_name, server_port=server_port,show_api=False)
+    interface.launch(server_name=server_name, server_port=server_port)
